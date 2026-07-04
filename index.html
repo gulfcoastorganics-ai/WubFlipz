@@ -159,6 +159,23 @@
       <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
     </section>
 
+    <!-- ANALYZE (Stage 5) -->
+    <section class="board" id="analyzeBoard" aria-label="Tempo and key detection">
+      <div class="board-head"><h2>Analyze</h2><span class="board-sub">Tempo · Key · Beat Grid — estimates</span></div>
+      <p class="board-note">Estimates only — edit if wrong. Detected BPM feeds the Wobble module; grid lines + snap apply to the Sample and Lanes.</p>
+      <div class="btnrow">
+        <button class="tbtn" id="detectBtn">Detect Tempo &amp; Key</button>
+        <button class="toggle" id="gridToggle">Grid Off</button>
+        <button class="toggle" id="snapToggle">Snap Off</button>
+      </div>
+      <div class="progress" id="analyzeProg"><div class="bar" id="analyzeBar"></div></div>
+      <div class="fieldrow">
+        <label class="fld"><span>BPM (editable)</span><input type="number" id="detBpm" min="40" max="300" step="1" /></label>
+        <label class="fld"><span>Key (editable)</span><select id="detKey"></select></label>
+        <label class="fld"><span>Confidence</span><input type="text" id="detConf" readonly /></label>
+      </div>
+    </section>
+
     <!-- QUICK SPLIT (Stage 3) -->
     <section class="board" id="quickSplitBoard" aria-label="Quick Split stem separation">
       <div class="board-head"><h2>Quick Split</h2><span class="board-sub">DSP · not ML · approximate</span></div>
@@ -205,6 +222,7 @@
   <script src="js/fft.js"></script>
   <script src="js/stems.js"></script>
   <script src="js/lanes.js"></script>
+  <script src="js/analyze.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

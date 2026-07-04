@@ -87,6 +87,7 @@
     // draw against the SHARED time axis (0..maxDur) so all lanes line up under one playhead
     const visSamples = maxDur() * sr;
     WF.Waveform.drawPeaks(g, l.summary, { width: cv.width, height: cv.height, startSample: 0, endSample: visSamples, color: l.color, bg: "#070a08" });
+    if (WF.Grid && WF.Grid.overlayFull) WF.Grid.overlayFull(g, { width: cv.width, height: cv.height, maxDur: maxDur() });
   }
 
   function updateBtns() { const b = $("lanesPlay"); if (b) { b.textContent = L.playing ? "Pause" : "Play"; b.classList.toggle("on", L.playing); } }
@@ -158,6 +159,6 @@
     if (WF.Tracks) { WF.Tracks.onChange.push(rebuild); rebuild(WF.Tracks.list); }
   }
 
-  Object.assign(L, { play, pause, stop, toggle, seek, position, rebuild });
+  Object.assign(L, { play, pause, stop, toggle, seek, position, rebuild, redraw: () => L.lanes.forEach(drawLaneWave) });
   if ($("lanesContainer")) initUI();
 })();

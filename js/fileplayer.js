@@ -90,10 +90,12 @@
   }
   function togglePlay() { P.playing ? pause() : play(); }
   function seek(t) {
+    if (WF.Grid) t = WF.Grid.snap(t);   // snap to beat grid when enabled
     t = Math.max(0, Math.min(P.duration, t));
     if (P.playing) { pause(); P.pausedPos = t; play(); } else { P.pausedPos = t; render(); }
   }
   function setLoop(a, b) {
+    if (WF.Grid) { a = WF.Grid.snap(a); b = WF.Grid.snap(b); }   // snap loop edges to grid
     if (b < a) [a, b] = [b, a];
     if (b - a < 0.02) return;
     P.loop = { on: true, a, b };

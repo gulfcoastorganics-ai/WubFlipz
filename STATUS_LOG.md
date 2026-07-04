@@ -5,6 +5,24 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — STAGE 5: tempo / key / beat-grid detection + snap
+
+New module `js/analyze.js` (`WF.Analyze` + `WF.Grid`) and an "Analyze" board.
+- **Tempo**: spectral-flux onset envelope → autocorrelation over 70–180 BPM (mild bias
+  against octave errors) → comb-correlation for beat phase. Auto-populates the **existing,
+  editable** Wobble BPM field (never silently authoritative — it writes into the input the
+  user can change).
+- **Key**: whole-track chroma → Krumhansl-Schmuckler major/minor profile correlation.
+  Shown in an editable dropdown; no auto-transpose. Confidence (correlation r) displayed.
+- **Beat grid**: `WF.Grid` draws beat lines on the Sample waveform (per-frame hook) and on
+  the Lanes (full-axis overlay). Loop-region edges and click-seek **snap** to the nearest
+  beat when Snap is on. Grid/Snap toggles.
+- **Verified headlessly**: synthetic 140-BPM click train → detected **140.00 BPM**;
+  synthetic C-major chord → detected **C major** (r=0.63); full 10-module init clean.
+  Real-music BPM/key accuracy + grid alignment + snap feel → AUDIT_QUEUE (EARS/EYES).
+
+---
+
 ## 2026-07-04 — STAGE 4: per-stem DAW lanes
 
 New module `js/lanes.js` (`WF.Lanes`) + a "Lanes" board. Consumes `WF.Tracks` (original

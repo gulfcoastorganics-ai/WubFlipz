@@ -44,7 +44,10 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 - [ ] (EYES) Lane waveforms and shared playhead line up.
 
 ## Stage 5 — detection
-- [ ] (EARS/EYES) Detected BPM is reasonable and auto-populates the Wobble BPM field;
-      user can override it (never silently authoritative).
-- [ ] (EYES) Beat-grid lines land on audible beats; loop/playhead snap to grid.
-- [ ] (EYES) Detected key is displayed and editable; confidence shown or overridable.
+- [ ] (EARS/EYES) Detected BPM on a **real track** is reasonable and auto-populates the
+      Wobble BPM field; user can override it. (Synthetic 140-BPM click → 140.00 BPM: PASS.
+      Real music with syncopation/octave ambiguity still needs a check.)
+- [ ] (EYES) Beat-grid lines land on audible beats on a real track; loop/playhead snap
+      to grid feels right.
+- [ ] (EARS/EYES) Detected key on a **real track** is plausible and editable. (Synthetic
+      C-major chord → "C major" r=0.63: PASS. Real mixes need a check.)
