@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wubflipz — dubstep wobble-bass synth</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="brush" cx="38%" cy="32%" r="75%">
+        <stop offset="0%" stop-color="#3b332a" /><stop offset="55%" stop-color="#241e17" /><stop offset="100%" stop-color="#14100b" />
+      </radialGradient>
+    </defs>
+  </svg>
+
+  <div class="rig">
+    <header>
+      <div class="brand">
+        <h1>wubflipz</h1>
+        <span class="model">WF-1 · Wobble Bass</span>
+      </div>
+      <div class="power">
+        <span class="led" id="led"></span>
+        <span class="status" id="status">Standby</span>
+        <button class="pwr" id="pwr" aria-pressed="false">Power</button>
+      </div>
+    </header>
+
+    <div class="rack">
+      <!-- OSCILLATORS -->
+      <section class="module" aria-label="Oscillators">
+        <h2>Oscillators</h2><div class="sub">Main Layer · A + B</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="detune" data-label="Detune" data-min="-1200" data-max="1200" data-curve="lin" data-default="9" aria-label="Oscillator B detune"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="mix" data-label="Mix A/B" data-min="0" data-max="1" data-curve="lin" data-default="0.4" aria-label="Mix A to B"></div>
+        </div>
+        <div class="selrow"><span class="tag">Osc A</span><div class="segmented" id="oscA"></div></div>
+        <div class="selrow"><span class="tag">Osc B</span><div class="segmented" id="oscB"></div></div>
+        <div class="selrow"><span class="tag">Octave</span>
+          <div class="octctl"><button id="octdn" aria-label="Octave down">−</button><span class="oval" id="octval">0</span><button id="octup" aria-label="Octave up">+</button></div>
+        </div>
+      </section>
+
+      <!-- SUB -->
+      <section class="module" aria-label="Sub bass">
+        <h2>Sub Bass</h2><div class="sub">Pure Sine · Steady</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="subLevel" data-label="Sub Level" data-min="0" data-max="1" data-curve="lin" data-default="0.85" aria-label="Sub level"></div>
+        </div>
+        <div class="selrow"><span class="tag">Sub Oct</span>
+          <div class="octctl"><button id="suboctdn" aria-label="Sub octave down">−</button><span class="oval" id="suboctval">-1</span><button id="suboctup" aria-label="Sub octave up">+</button></div>
+        </div>
+        <button class="toggle" id="subOn" aria-pressed="true">Sub On</button>
+        <p class="note">Bypasses the wobble/growl filter — stays clean under any modulation.</p>
+      </section>
+
+      <!-- FILTER -->
+      <section class="module" aria-label="Filter">
+        <h2>Filter</h2><div class="sub">Low-Pass · 24 dB · Modulated</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="cutoff" data-label="Cutoff" data-min="30" data-max="18000" data-curve="log" data-default="700" aria-label="Filter cutoff"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="q" data-label="Reso" data-min="0.3" data-max="24" data-curve="log" data-default="7" aria-label="Resonance"></div>
+        </div>
+        <div class="screen scope-screen"><canvas id="scope"></canvas></div>
+        <div class="screen-cap"><span>Oscilloscope</span><b id="scopeState">— idle</b></div>
+      </section>
+
+      <!-- WOBBLE -->
+      <section class="module" aria-label="Wobble">
+        <h2>Wobble</h2><div class="sub">Tempo-Synced LFO → Cutoff</div>
+        <div class="fieldrow">
+          <label class="fld"><span>BPM</span><input type="number" id="bpm" min="40" max="300" step="1" /></label>
+          <label class="fld"><span>Division</span><select id="wobbleDiv"></select></label>
+        </div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="wobbleDepth" data-label="Depth" data-min="0" data-max="1" data-curve="lin" data-default="0.7" aria-label="Wobble depth"></div>
+        </div>
+        <div class="selrow"><span class="tag">LFO</span><div class="segmented" id="wobbleWave"></div></div>
+        <div class="btnrow">
+          <button class="toggle" id="halfTime" aria-pressed="false">Normal</button>
+          <button class="toggle" id="wobbleOn" aria-pressed="true">Wobble On</button>
+        </div>
+        <div class="screen-cap"><span>Rate</span><b id="rateReadout">— Hz</b></div>
+      </section>
+
+      <!-- GROWL -->
+      <section class="module" aria-label="Growl">
+        <h2>Growl</h2><div class="sub">Fast LFO → Cutoff · Reso · Pitch</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="growlAmount" data-label="Amount" data-min="0" data-max="1" data-curve="lin" data-default="0" aria-label="Growl amount"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="growlRate" data-label="Rate" data-min="2" data-max="60" data-curve="log" data-default="14" aria-label="Growl rate"></div>
+        </div>
+        <div class="selrow"><span class="tag">LFO</span><div class="segmented" id="growlWave"></div></div>
+        <p class="note">Layers atop wobble. Amount blends modulation of cutoff, resonance and a small pitch drift.</p>
+      </section>
+
+      <!-- ENVELOPE -->
+      <section class="module" aria-label="Envelope">
+        <h2>Envelope</h2><div class="sub">ADSR · Amplitude</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="attack" data-label="Attack" data-min="0.001" data-max="2" data-curve="log" data-default="0.005" aria-label="Attack"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="decay" data-label="Decay" data-min="0.005" data-max="2" data-curve="log" data-default="0.12" aria-label="Decay"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="sustain" data-label="Sustain" data-min="0" data-max="1" data-curve="lin" data-default="0.85" aria-label="Sustain"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="release" data-label="Release" data-min="0.005" data-max="3" data-curve="log" data-default="0.22" aria-label="Release"></div>
+        </div>
+        <div class="screen env-screen"><canvas id="envcv"></canvas></div>
+        <div class="screen-cap"><span>Shape</span><b id="envState">A·D·S·R</b></div>
+      </section>
+
+      <!-- DRIVE + OUTPUT -->
+      <section class="module" aria-label="Drive and output">
+        <h2>Drive / Out</h2><div class="sub">tanh Saturation · Limiter</div>
+        <div class="knob-row">
+          <div class="knob" tabindex="0" role="slider" data-param="drive" data-label="Drive" data-min="0" data-max="1" data-curve="lin" data-default="0.18" aria-label="Drive"></div>
+          <div class="knob" tabindex="0" role="slider" data-param="master" data-label="Master" data-min="0" data-max="1" data-curve="lin" data-default="0.8" aria-label="Master volume"></div>
+        </div>
+        <div class="screen-cap"><span>Polyphony</span><b id="voices">0 voices</b></div>
+        <div class="screen-cap"><span>Sample rate</span><b id="srate">— kHz</b></div>
+        <div class="screen-cap"><span>Base latency</span><b id="baseLat">interactive</b></div>
+        <div class="screen-cap"><span>Comp GR top/sub/out</span><b id="compGR">0 / 0 / 0 dB</b></div>
+      </section>
+
+      <!-- PRESETS -->
+      <section class="module" aria-label="Presets">
+        <h2>Presets</h2><div class="sub">localStorage · JSON File</div>
+        <label class="fld full"><span>Name</span><input type="text" id="presetName" placeholder="my-wobble" /></label>
+        <div class="btnrow">
+          <button class="toggle" id="presetSave">Save</button>
+          <button class="toggle" id="presetLoad">Load</button>
+        </div>
+        <div class="btnrow">
+          <button class="toggle" id="presetDownload">Download .json</button>
+          <label class="toggle filebtn">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
+        </div>
+        <div class="screen-cap"><span>Status</span><b id="presetMsg"></b></div>
+      </section>
+    </div>
+
+    <!-- KEYBOARD -->
+    <div class="kbwrap">
+      <div class="kbmeta">
+        <span>Play with mouse, touch, or your keyboard</span>
+        <span>Notes <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd>… &nbsp; Octave <kbd>Z</kbd><kbd>X</kbd></span>
+      </div>
+      <div class="kbscroll"><div class="keys" id="keys"></div></div>
+    </div>
+
+    <footer>wubflipz WF-1 — standalone Web Audio instrument · no build, no network · sibling to wublabz</footer>
+  </div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

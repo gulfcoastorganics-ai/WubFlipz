@@ -1,0 +1,145 @@
+# wubflipz — STATUS LOG
+
+Running log of what's built, what's been validated by ear, and known issues.
+Update at every checkpoint.
+
+---
+
+## 2026-07-04 — BUGFIX A + B (before Stages 2–5)
+
+**BUGFIX A — residual sub movement / output-stage compressor.**
+- Traced `sumBus → master → analyser → destination`: after Fix 1 there is **no shared
+  DynamicsCompressor downstream of sumBus** (the original shared limiter was already
+  removed). So the hypothesized "same bug one level downstream" does not exist in the
+  graph — nothing there was riding the wobble.
+- Still added a final **safety brickwall** (`outCeiling`: thr −1 dB, ratio 20, atk 1 ms,
+  rel 50 ms) after `master`, per the spec's intent: pure clip protection that reads
+  **0.0 dB** at normal levels and only engages on genuine overs — never an active
+  dynamics stage on the merged bus. Also resolves the "no brickwall on merged bus"
+  clip-risk I flagged in Fix 1. Meter now shows "Comp GR top/sub/out". → AUDIT_QUEUE (EARS).
+
+**BUGFIX B — on-screen keyboard not rendering.** Root cause was NOT keyboard-specific:
+a **temporal-dead-zone crash**. `bindOctave("octave", …, () => relabelKeys())` (ui.js)
+ran its `upd()` at init, which called `relabelKeys()`, which reads `keyEls`/`BASE` —
+both declared with `const` later in the file. Accessing a `const` before its declaration
+throws `ReferenceError: Cannot access 'keyEls' before initialization`, aborting the whole
+UI IIFE, so `buildKeyboard()` (and toggles/BPM/presets/power/canvases after it) never ran.
+- Fix: `bindOctave` now updates only the value display at init (`setDisp()`), deferring
+  the `extra` side-effect to button clicks / `refreshAll`. `buildKeyboard()` labels keys
+  itself. Root cause, not a symptom patch.
+- **Verified headlessly** (node DOM+WebAudio shim, no browser): init throws nothing;
+  `#keys` builds 25 elements (15 white + 10 black); simulated `A` keydown → voiceCount
+  0→1. Actual sound still → AUDIT_QUEUE (EARS).
+
+---
+
+## 2026-07-04 — FIX 1: sub-bass wobbles under heavy Wobble/Growl — ⚠️ NEEDS EARS AGAIN
+
+**Diagnosed cause (traced/modeled before changing anything):**
+- **#1 Growl pitch-drift leak → NOT the cause (clean).** Code trace: `gPitch` connects
+  only to `oscA.detune` + `oscB.detune` (engine.js:193). The sub oscillator has zero
+  modulation connections of any kind. Ruled out; not touched.
+- **#2 Shared dynamics stage → CONFIRMED, this was the bug.** The sub bus summed into
+  the *same* `preBus` as the wobble-filtered top layer, feeding one shared waveshaper +
+  one shared `DynamicsCompressor` before output. The top layer's wobble-rate level
+  swings drove that shared compressor's gain reduction, ducking the clean sub in sync.
+  Modeled with the engine's real comp settings (thr −12 / ratio 8 / atk 3 ms / rel
+  200 ms): sub level swung **1.4 dB @ 1/16, 2.4 dB @ 1/8, 3.7 dB @ 1/4 & half-time** —
+  clearly audible, worse at slower wobble (release tracks the longer period).
+- Could not run real-time audio `.reduction` logging here (headless, no browser/audio),
+  so confirmation is by graph trace + a numerical model of the compressor. A live
+  `.reduction` readout ("Comp GR top / sub" in Drive/Out) was added so the by-ear
+  re-check also empirically confirms it.
+
+**Fix applied (de-couple sub from the shared dynamics stage):**
+- Top layer and sub now hit **separate** compressors and merge *after* compression:
+  `filter → preBus → shaper → topLimiter → sumBus` and `subBus → subCeiling → sumBus`,
+  then `sumBus → master → analyser → out`. Because the sub's ceiling only ever sees the
+  steady sub, its gain reduction is DC → modeled post-fix swing **0.00 dB** at every rate.
+- Chose the hybrid of options (a)+(b): sub joins post-compression AND gets its own gentle
+  ceiling (`subCeiling`: thr −6, ratio 6, atk 5 ms, rel 150 ms) since it now skips the
+  shared limiter.
+
+**Tradeoffs to confirm by ear (flagged per spec):**
+- The sub now also **bypasses the shared waveshaper**, so it is fully DRY — no saturation
+  on the sub anymore (previously it was saturated; that was the earlier flagged decision).
+  This is more consistent with "clean & steady," but if you want sub harmonics for small-
+  speaker audibility we'd add a *dedicated, steady* sub saturator (safe — steady in =
+  steady harmonics, no wobble). Not done yet.
+- There is now **no single brickwall on the merged bus** (intentional — a shared final
+  limiter would re-introduce the exact pumping). Each path is limited individually and
+  summed pre-master. At defaults the summed peak is well under 0 dBFS, but if you crank
+  `subLevel` + `master` together, watch for clipping and back `master` off.
+
+**Status: NOT self-certified. Needs a listening test** — play a heavy Wobble+Growl
+preset on a low note and confirm the sub sits rock-steady under the wobble while watching
+"Comp GR top / sub" (top should swing, sub should stay ~constant).
+
+---
+
+## 2026-07-04 — CHECKPOINT 1 (Stage 0 + Stage 1) — ⚠️ NEEDS EARS
+
+Stage 1 engine is wired and boots clean, but **no audio has been validated by ear
+yet.** This is the NEEDS-EYES / NEEDS-EARS gate defined in the build spec. Do not
+begin Stage 2 until a human confirms the sound. I am explicitly *not* self-certifying
+audio quality.
+
+### Built
+- **Stage 0 scaffold**: `index.html`, `js/engine.js`, `js/ui.js`, `js/presets.js`,
+  `css/style.css`, `STATUS_LOG.md`, `README.md`.
+- **Core voice** (ported from prior synth build): two oscillators A+B
+  (sine/tri/saw/square), Detune (±1200 ct), equal-power Mix, ±3 Octave.
+- **Filter**: 24 dB low-pass, Cutoff (log 30 Hz–18 kHz), Resonance/Q.
+- **ADSR** amplitude envelope with live-redrawing shape graph.
+- **Output**: Master → tanh waveshaper → `DynamicsCompressor` limiter → phosphor
+  oscilloscope. Readouts: polyphony (n / cap), sample rate, base latency.
+- **AudioContext**: `latencyHint:'interactive'`, lazy-started on first gesture.
+- **Wobble module**: tempo-synced LFO → filter cutoff (via `filter.detune`, so the
+  sweep is exponential/musical). BPM field (default 140), half-time toggle,
+  quantized musical divisions (1/1…1/16 + dotted + triplet — no free-Hz), Depth
+  knob, LFO waveform (sine/tri/square). Live rate readout in Hz.
+- **Growl module**: second faster LFO. A single "Amount" knob blends simultaneous
+  modulation of cutoff (adds to wobble), resonance (Q), and a small ±22 ct pitch
+  drift on both main oscillators. Independent Rate knob (2–60 Hz), LFO waveform.
+- **Sub-bass voice**: always-on pure sine, independent octave (default −1), routed
+  to its own bus that **bypasses the wobble/growl-modulated filter** — the top layer
+  cannot make the sub wobble. This is the intended fix for the thin/muddy diagnosis.
+- **Waveshaper/saturation**: tanh curve, Drive knob (0 = effectively clean → grit).
+  `oversample:'4x'` to reduce aliasing.
+- **Presets**: full-state JSON. Save/Load to `localStorage`, Download `.json`,
+  Upload from file. UI refreshes to match a loaded preset.
+- **Voice discipline**: `MAX_VOICES = 16` with oldest-voice stealing; explicit
+  `disconnect()` of every node on envelope release (incl. removing the growl pitch
+  bus's connection to each voice's osc detune) to prevent node-graph leaks.
+
+### Validated
+- Static: all three JS files pass `node --check`; every DOM id referenced by
+  `ui.js` exists in `index.html`; site serves 200 on `python3 -m http.server 4173`.
+- **By ear: NONE. Pending.** No headless browser + no speakers in the build env.
+
+### Needs a listening test (please confirm)
+1. Wobble feels musical and locks to BPM across divisions; half-time = classic slow.
+2. Growl adds gnarl without going harsh/unstable at high Amount + high Q.
+3. **Sub stays steady and audible under heavy wobble** (the core mix fix).
+4. Drive adds weight/grit without turning to mush; 0 is clean.
+5. No clicks on note on/off; no runaway/stuck voices over a long jam.
+6. No console errors on load or first note.
+
+### Decisions to confirm at the gate (I made a call — flag if wrong)
+- **Sub goes THROUGH the waveshaper** (it joins the pre-output bus, which is pre-
+  saturation). Rationale: harmonic saturation makes a sub audible on small speakers.
+  It still bypasses the *wobble/growl filter*, so the spec's "don't let the sub
+  wobble" is honored. If you want the sub 100% dry, we route it post-shaper instead.
+- Wobble modulates `filter.detune` (cents), not `filter.frequency` (Hz), so sweeps
+  are exponential/musical rather than linear. Standard for wobble bass, but noting it.
+- Growl Rate is free-Hz (2–60), not tempo-synced — the spec called for "independent
+  rate control" and growl is a fast/formant layer. Say the word to quantize it too.
+
+### Known issues / limitations
+- Changing octave (Z/X) while a *computer* key is physically held can leave that one
+  note stuck until window blur (which clears all notes). Carried over from the prior
+  synth; low priority. Fixable by tracking held notes by key char rather than midi.
+- No external audio file loading yet — that is Stage 2, intentionally not started.
+
+### Next (Stage 2 — DO NOT START until the above is heard and signed off)
+- (per spec) external audio buffer loading and whatever else Stage 2 defines.
