@@ -5,6 +5,27 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — STAGE 3: Quick Split (DSP stem separation, no ML)
+
+New modules: `js/fft.js` (dependency-free radix-2 FFT) and `js/stems.js` (`WF.Stems`,
+`WF.Tracks` registry), plus a "Quick Split" board. Labeled honestly in the UI as
+approximate DSP, **not** professional stem quality.
+- **HPSS** (Fitzgerald 2010): manual STFT (fftSize 2048, hop 512, Hann) → magnitude
+  spectrogram → horizontal (time) median = harmonic, vertical (freq) median = percussive,
+  soft Wiener ratio masks → ISTFT overlap-add. Two-pass, magnitudes-only storage +
+  per-frame complex recompute to bound memory; processed in time-chunks with `await`
+  yields + progress so the UI doesn't freeze.
+- **Mid/Side**: (L−R)/2 vocal-remove, (L+R)/2 vocal-isolate (stereo only; mono files get
+  a clear message). Cheap, no FFT.
+- Up to 4 derived tracks land in `WF.Tracks` (consumed by Stage 4 lanes); Stage 3 has a
+  small ▶ preview per track.
+- **Verified headlessly**: FFT correct (peak bin + round-trip err ~1e-14); HPSS
+  reconstruction `H+P ≈ input` (err ~7e-8); steady tone → 100% harmonic, transients →
+  100% percussive. Real-music separation quality → AUDIT_QUEUE (EARS). Long-file memory
+  → AUDIT_QUEUE (STRESS): chunked, but not yet run on a real 5-min track.
+
+---
+
 ## 2026-07-04 — STAGE 2: file upload, waveform, transport
 
 New modules: `js/waveform.js` (reusable peak summaries + draw) and `js/fileplayer.js`

@@ -159,6 +159,19 @@
       <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
     </section>
 
+    <!-- QUICK SPLIT (Stage 3) -->
+    <section class="board" id="quickSplitBoard" aria-label="Quick Split stem separation">
+      <div class="board-head"><h2>Quick Split</h2><span class="board-sub">DSP · not ML · approximate</span></div>
+      <p class="board-note">Rough, client-side separation for sketching — <b>not</b> professional stem quality. HPSS splits tonal vs. drum content; Mid/Side roughly removes or isolates centre-panned vocals.</p>
+      <div class="btnrow">
+        <button class="tbtn" id="splitHP">Harmonic / Percussive (HPSS)</button>
+        <button class="tbtn" id="splitMS">Vocal Remove / Isolate (Mid-Side)</button>
+      </div>
+      <div class="progress" id="splitProg"><div class="bar" id="splitBar"></div></div>
+      <div class="board-note" id="splitStatus"></div>
+      <div id="stemList" class="stem-list"></div>
+    </section>
+
     <!-- KEYBOARD -->
     <div class="kbwrap">
       <div class="kbmeta">
@@ -175,6 +188,8 @@
   <script src="js/presets.js"></script>
   <script src="js/waveform.js"></script>
   <script src="js/fileplayer.js"></script>
+  <script src="js/fft.js"></script>
+  <script src="js/stems.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>
