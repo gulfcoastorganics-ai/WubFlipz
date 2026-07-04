@@ -36,7 +36,10 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 - [ ] (EARS) Mid-side: "mid-removed" reduces center vocal; "mid-only" isolates it.
 - [ ] (STRESS) **Memory** — run on a real 5+ minute track and watch peak memory; this
       is the 2.7 GB-ceiling environment that OOM-crashed Demucs. Do NOT assume safe
-      from a short clip. Chunked OfflineAudioContext used, but verify on a long file.
+      from a short clip. HPSS stores only the magnitude spectrogram (~115 MB for 5 min)
+      + recomputes complex per frame, processed in time-chunks with yields — but peak
+      memory on a real long file is unverified. NOTE: implemented as chunked manual
+      STFT (not OfflineAudioContext); verify memory on a real 5-min track.
 
 ## Stage 4 — lanes
 - [ ] (EARS) All lanes play in sample-accurate sync against one clock (no drift/flam).
