@@ -39,6 +39,24 @@ or press any note.
 | **Drive / Out** | tanh saturation (Drive), Master, limiter, oscilloscope, readouts |
 | **Presets** | Save/Load JSON via `localStorage`, Download / Upload `.json` |
 
+## Audio tools (Stages 2–5)
+
+Below the synth: a small sample workstation, all client-side, no build step.
+
+- **Sample** — drag-drop / browse to load audio; off-main-thread decode; peak waveform;
+  transport (play/pause/stop), click-to-seek, drag-to-select loop region, zoom. Runs on
+  its own AudioContext, separate from the synth.
+- **Analyze** — detect tempo (spectral-flux onsets → autocorrelation) and key (chroma +
+  Krumhansl-Schmuckler). Detected BPM fills the Wobble field; both are **editable
+  estimates**. Toggle a beat **Grid** and **Snap** (loop/seek snap to beats).
+- **Quick Split** — approximate, DSP-only (not ML) stem separation: HPSS (harmonic /
+  percussive via median-filtered spectrogram) and Mid/Side (rough vocal remove / isolate).
+- **Lanes** — one lane per track (original + splits) with waveform, volume, pan, mute,
+  solo; all lanes share one sample-accurate playhead/transport.
+
+See `STATUS_LOG.md` for build detail and `AUDIT_QUEUE.md` for what still needs a human
+by-ear / by-eye pass (audio quality is never self-certified here).
+
 ## Architecture
 
 ```
