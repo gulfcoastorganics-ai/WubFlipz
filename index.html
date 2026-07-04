@@ -138,6 +138,27 @@
       </section>
     </div>
 
+    <!-- SAMPLE PLAYER (Stage 2) -->
+    <section class="board" id="playerBoard" aria-label="Sample player">
+      <div class="board-head"><h2>Sample</h2><span class="board-sub">Load Audio · Transport · Loop · Zoom</span></div>
+      <div class="dropzone" id="dropzone">
+        <span>Drop an audio file (mp3 · wav · ogg) or <label class="linklike">browse<input type="file" id="fileInput" accept="audio/*" hidden /></label></span>
+      </div>
+      <div class="fileinfo"><b id="fileName">— no file —</b><span id="fileDur"></span></div>
+      <div class="progress" id="decodeProg"><div class="bar" id="decodeBar"></div></div>
+      <div class="wavewrap"><canvas id="waveCanvas"></canvas></div>
+      <div class="transport">
+        <button class="tbtn" id="playBtn">Play</button>
+        <button class="tbtn" id="stopBtn">Stop</button>
+        <button class="tbtn" id="loopBtn">Loop</button>
+        <button class="tbtn" id="clearLoopBtn">Clear Loop</button>
+        <button class="tbtn" id="zoomInBtn">Zoom +</button>
+        <button class="tbtn" id="zoomOutBtn">Zoom −</button>
+        <span class="treadout" id="timeReadout">0:00 / 0:00</span>
+      </div>
+      <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
+    </section>
+
     <!-- KEYBOARD -->
     <div class="kbwrap">
       <div class="kbmeta">
@@ -152,6 +173,8 @@
 
   <script src="js/engine.js"></script>
   <script src="js/presets.js"></script>
+  <script src="js/waveform.js"></script>
+  <script src="js/fileplayer.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

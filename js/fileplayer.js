@@ -1,0 +1,184 @@
+/* wubflipz — Stage 2 file player
+ * Upload (drag-drop + picker), decodeAudioData (off main thread), peak waveform,
+ * transport (play/pause/stop, click-seek, loop-region select, zoom).
+ * Runs on its OWN AudioContext + BufferSource — never shares nodes with the synth voices.
+ */
+(function () {
+  "use strict";
+  const WF = (window.WF = window.WF || {});
+  const $ = (id) => document.getElementById(id);
+  const fmtTime = (t) => { t = Math.max(0, t | 0); return `${(t / 60) | 0}:${String(t % 60).padStart(2, "0")}`; };
+
+  const P = {
+    ctx: null, buffer: null, summary: null, duration: 0,
+    view: { start: 0, end: 0 },
+    loop: { on: false, a: 0, b: 0 },
+    playing: false, pausedPos: 0, startCtxTime: 0, startOffset: 0,
+    source: null, gain: null, analyser: null, _manualStop: false, _sel: null, _raf: 0,
+    onLoaded: [],   // Stage 3/4/5 hook: cb(buffer)
+  };
+  WF.Player = P;
+
+  function ensureCtx() {
+    if (P.ctx) { if (P.ctx.state === "suspended") P.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    P.ctx = new AC({ latencyHint: "interactive" });
+    P.gain = P.ctx.createGain(); P.gain.value = 1;
+    P.analyser = P.ctx.createAnalyser(); P.analyser.fftSize = 2048;
+    P.gain.connect(P.analyser); P.analyser.connect(P.ctx.destination);
+  }
+
+  // ---- load / decode / summarize (non-blocking) ----
+  async function loadFile(file) {
+    if (!file) return;
+    ensureCtx();
+    $("fileName").textContent = file.name;
+    setProgress(0, "decoding…");
+    let ab;
+    try { ab = await file.arrayBuffer(); } catch (e) { return fail("Could not read file"); }
+    let buf;
+    try { buf = await P.ctx.decodeAudioData(ab); }
+    catch (e) { return fail("Unsupported or corrupt audio"); }
+    P.buffer = buf; P.duration = buf.duration;
+    P.view = { start: 0, end: buf.duration };
+    P.loop = { on: false, a: 0, b: buf.duration };
+    P.pausedPos = 0; P.playing = false;
+    setProgress(0, "analysing…");
+    P.summary = await WF.Waveform.summarize(buf, (p) => setProgress(p, "analysing…"));
+    hideProgress();
+    $("fileDur").textContent = fmtTime(buf.duration) + `  ·  ${buf.numberOfChannels === 1 ? "mono" : "stereo"} ${(buf.sampleRate / 1000).toFixed(1)}k`;
+    updateButtons(); render();
+    P.onLoaded.forEach((cb) => { try { cb(buf); } catch (e) {} });
+  }
+  function fail(msg) { hideProgress(); $("fileName").textContent = msg; }
+  function setProgress(p, label) {
+    const wrap = $("decodeProg"); wrap.style.display = "block";
+    $("decodeBar").style.width = Math.round((p || 0) * 100) + "%";
+    $("decodeBar").dataset.label = label || "";
+  }
+  function hideProgress() { $("decodeProg").style.display = "none"; }
+
+  // ---- transport ----
+  function position() {
+    if (!P.playing) return P.pausedPos;
+    let t = P.startOffset + (P.ctx.currentTime - P.startCtxTime);
+    if (P.loop.on) { const L = P.loop.b - P.loop.a; if (L > 0 && t > P.loop.b) t = P.loop.a + ((t - P.loop.a) % L); }
+    else if (t > P.duration) t = P.duration;
+    return t;
+  }
+  function play() {
+    if (!P.buffer || P.playing) return;
+    ensureCtx(); if (P.ctx.state === "suspended") P.ctx.resume();
+    const src = P.ctx.createBufferSource(); src.buffer = P.buffer; src.connect(P.gain);
+    let offset = P.pausedPos;
+    if (P.loop.on) { src.loop = true; src.loopStart = P.loop.a; src.loopEnd = P.loop.b; if (offset < P.loop.a || offset >= P.loop.b) offset = P.loop.a; }
+    P._manualStop = false;
+    src.onended = () => { if (P._manualStop) return; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; updateButtons(); render(); };
+    src.start(0, offset);
+    P.source = src; P.startCtxTime = P.ctx.currentTime; P.startOffset = offset; P.playing = true;
+    updateButtons(); tick();
+  }
+  function pause() {
+    if (!P.playing) return;
+    P.pausedPos = position(); P._manualStop = true;
+    try { P.source.stop(); } catch (e) {}
+    P.playing = false; updateButtons();
+  }
+  function stop() {
+    P._manualStop = true; try { P.source && P.source.stop(); } catch (e) {}
+    P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; updateButtons(); render();
+  }
+  function togglePlay() { P.playing ? pause() : play(); }
+  function seek(t) {
+    t = Math.max(0, Math.min(P.duration, t));
+    if (P.playing) { pause(); P.pausedPos = t; play(); } else { P.pausedPos = t; render(); }
+  }
+  function setLoop(a, b) {
+    if (b < a) [a, b] = [b, a];
+    if (b - a < 0.02) return;
+    P.loop = { on: true, a, b };
+    if (P.playing) { pause(); play(); }
+    updateButtons(); render();
+  }
+  function clearLoop() { P.loop.on = false; updateButtons(); render(); }
+  function zoom(factor) {
+    if (!P.buffer) return;
+    const c = Math.max(P.view.start, Math.min(P.view.end, position()));
+    let s = c - (c - P.view.start) * factor, e = c + (P.view.end - c) * factor;
+    s = Math.max(0, s); e = Math.min(P.duration, e);
+    if (e - s < 0.02) return;
+    P.view = { start: s, end: e }; render();
+  }
+
+  // ---- render ----
+  const cv = () => $("waveCanvas");
+  function cssW() { return cv().getBoundingClientRect().width || 1; }
+  function timeToXcss(t) { return ((t - P.view.start) / (P.view.end - P.view.start)) * cssW(); }
+  function xToTimeCss(x) { return P.view.start + (x / cssW()) * (P.view.end - P.view.start); }
+  function render() {
+    const c = cv(); if (!c) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = c.getBoundingClientRect();
+    c.width = Math.max(1, Math.round(rect.width * dpr)); c.height = Math.max(1, Math.round(rect.height * dpr));
+    const g = c.getContext("2d"), W = c.width, H = c.height, sx = W / (cssW() || 1);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = "#070a08"; g.fillRect(0, 0, W, H);
+    if (!P.summary) { g.fillStyle = "#3a4440"; g.font = `${12 * dpr}px ui-monospace, monospace`; g.fillText("no file loaded", 12 * dpr, H / 2); return; }
+    const sr = P.buffer.sampleRate;
+    WF.Waveform.drawPeaks(g, P.summary, { width: W, height: H, startSample: P.view.start * sr, endSample: P.view.end * sr, color: "#6fe4a6" });
+    // loop region (committed) + tentative selection
+    const drawRegion = (a, b, fill) => { const x1 = timeToXcss(a) * sx, x2 = timeToXcss(b) * sx; g.fillStyle = fill; g.fillRect(x1, 0, x2 - x1, H); };
+    if (P.loop.on) drawRegion(P.loop.a, P.loop.b, "rgba(246,178,60,0.14)");
+    if (P._sel) drawRegion(P._sel.a, P._sel.b, "rgba(246,178,60,0.22)");
+    // playhead
+    const px = timeToXcss(position()) * sx;
+    g.strokeStyle = "#f6b23c"; g.lineWidth = 2 * dpr; g.beginPath(); g.moveTo(px, 0); g.lineTo(px, H); g.stroke();
+    if (WF.Grid && WF.Grid.overlay) WF.Grid.overlay(g, { W, H, sx, timeToXcss, view: P.view }); // Stage 5 beat grid
+    $("timeReadout").textContent = `${fmtTime(position())} / ${fmtTime(P.duration)}` + (P.loop.on ? `  ⟳ ${fmtTime(P.loop.a)}–${fmtTime(P.loop.b)}` : "");
+  }
+  function tick() { render(); if (P.playing) P._raf = requestAnimationFrame(tick); }
+
+  function updateButtons() {
+    $("playBtn").textContent = P.playing ? "Pause" : "Play";
+    $("playBtn").classList.toggle("on", P.playing);
+    $("loopBtn").classList.toggle("on", P.loop.on);
+  }
+
+  // ---- UI wiring ----
+  function initUI() {
+    const dz = $("dropzone");
+    dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("over"); });
+    dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+    dz.addEventListener("drop", (e) => { e.preventDefault(); dz.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+    $("fileInput").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) loadFile(f); e.target.value = ""; });
+    $("playBtn").addEventListener("click", togglePlay);
+    $("stopBtn").addEventListener("click", stop);
+    $("loopBtn").addEventListener("click", () => { if (P.loop.on) clearLoop(); else if (P.buffer) setLoop(P.view.start, P.view.end); });
+    $("clearLoopBtn").addEventListener("click", clearLoop);
+    $("zoomInBtn").addEventListener("click", () => zoom(0.5));
+    $("zoomOutBtn").addEventListener("click", () => zoom(2));
+
+    const c = cv();
+    let downX = 0, downT = 0, dragging = false, down = false;
+    c.addEventListener("pointerdown", (e) => {
+      if (!P.buffer) return;
+      down = true; dragging = false; downX = e.offsetX; downT = xToTimeCss(e.offsetX);
+      c.setPointerCapture(e.pointerId);
+    });
+    c.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      if (Math.abs(e.offsetX - downX) > 4) dragging = true;
+      if (dragging) { P._sel = { a: Math.min(downT, xToTimeCss(e.offsetX)), b: Math.max(downT, xToTimeCss(e.offsetX)) }; render(); }
+    });
+    c.addEventListener("pointerup", (e) => {
+      if (!down) return; down = false;
+      if (dragging && P._sel) { setLoop(P._sel.a, P._sel.b); P._sel = null; }
+      else { seek(downT); }
+    });
+    window.addEventListener("resize", () => { if (P.summary) render(); });
+    render();
+  }
+
+  Object.assign(P, { loadFile, play, pause, stop, togglePlay, seek, setLoop, clearLoop, zoom, position, render });
+  if (document.getElementById("dropzone")) initUI();
+})();

@@ -5,6 +5,26 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — STAGE 2: file upload, waveform, transport
+
+New modules: `js/waveform.js` (reusable peak summaries + draw) and `js/fileplayer.js`
+(`WF.Player`), plus a full-width "Sample" board in index.html.
+- **Upload**: drag-drop zone + file picker (`audio/*`).
+- **Decode off main thread**: `file.arrayBuffer()` (async) → `decodeAudioData` (browser
+  background thread) → peak summary computed in **chunked** `setTimeout` slices
+  (4000 blocks/tick) with a progress bar. No size assumptions; long files don't block.
+- **Waveform**: peak-based min/max per pixel column from a mono block summary (~≤200k
+  blocks regardless of length), not sample-by-sample.
+- **Transport**: play/pause/stop, click-to-seek, drag-to-select loop region (with loop
+  on/off + clear), zoom in/out around the playhead. Playhead animates via rAF.
+- **Isolation**: `WF.Player` uses its **own** AudioContext + BufferSource; it never
+  touches the synth voice graph. Exposes `onLoaded` hooks for Stages 3–5.
+- **Verified headlessly**: all 5 scripts init with no errors; `summarize()` peak math
+  correct on a synthetic 1M-sample stereo buffer (−0.75/+0.75), blockSize floor (64)
+  holds on tiny buffers, `drawPeaks` runs. Playback/seek/loop timing → AUDIT_QUEUE (EARS/EYES).
+
+---
+
 ## 2026-07-04 — BUGFIX A + B (before Stages 2–5)
 
 **BUGFIX A — residual sub movement / output-stage compressor.**
