@@ -172,6 +172,20 @@
       <div id="stemList" class="stem-list"></div>
     </section>
 
+    <!-- LANES (Stage 4) -->
+    <section class="board" id="lanesBoard" aria-label="Multitrack lanes">
+      <div class="board-head"><h2>Lanes</h2><span class="board-sub">Multitrack · one shared playhead · sample-accurate</span></div>
+      <div class="transport">
+        <button class="tbtn" id="lanesPlay">Play</button>
+        <button class="tbtn" id="lanesStop">Stop</button>
+        <span class="treadout" id="lanesTime">0:00 / 0:00</span>
+      </div>
+      <div class="lanes-container" id="lanesContainer">
+        <div class="lanes-playhead" id="lanesPlayhead"></div>
+      </div>
+      <p class="board-note">Click a lane to seek · per-lane Vol / Pan / Mute (M) / Solo (S) · the Sample loop region applies here too.</p>
+    </section>
+
     <!-- KEYBOARD -->
     <div class="kbwrap">
       <div class="kbmeta">
@@ -190,6 +204,7 @@
   <script src="js/fileplayer.js"></script>
   <script src="js/fft.js"></script>
   <script src="js/stems.js"></script>
+  <script src="js/lanes.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

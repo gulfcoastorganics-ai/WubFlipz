@@ -5,6 +5,25 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — STAGE 4: per-stem DAW lanes
+
+New module `js/lanes.js` (`WF.Lanes`) + a "Lanes" board. Consumes `WF.Tracks` (original
++ Quick Split derivations) and renders one lane each.
+- **Per lane**: peak waveform (shared 0..maxDuration time axis so all lanes align under
+  one playhead), volume fader, pan (StereoPanner), Mute, Solo.
+- **Shared transport**: single Play/Stop; on play, every lane's BufferSource is scheduled
+  against **one** `WF.Player.ctx` clock at a common `startTime + offset` — no per-lane
+  timers, so lanes stay sample-accurate. One overlay playhead; click a lane to seek; the
+  Sample loop region applies to all lanes.
+- **Isolation**: reuses the file player's AudioContext; independent of the synth voices.
+- **Deferred (as allowed)**: vertical lane drag-reorder — skipped to protect the shared
+  timeline; not required this pass.
+- **Verified headlessly**: builds exactly 3 lanes for 3 tracks; Solo lane[1] →
+  gains [0, 0.85, 0]; Mute lane[0] → [0, 0.85, 0.85] (solo/mute/vol math correct).
+  Sample-accurate sync + real playback → AUDIT_QUEUE (EARS).
+
+---
+
 ## 2026-07-04 — STAGE 3: Quick Split (DSP stem separation, no ML)
 
 New modules: `js/fft.js` (dependency-free radix-2 FFT) and `js/stems.js` (`WF.Stems`,

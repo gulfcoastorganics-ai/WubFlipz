@@ -115,6 +115,21 @@ button.pwr.on{border-color:var(--phos);color:var(--phos);}
 .stem-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;background:#141009;border:1px solid var(--line);border-radius:8px;}
 .stem-name{font-family:var(--mono);font-size:12px;color:var(--ink);}
 
+/* ---- Stage 4: lanes ---- */
+.lanes-container{position:relative;margin-top:12px;display:flex;flex-direction:column;gap:8px;min-height:40px;}
+.lanes-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--amber);box-shadow:0 0 6px rgba(246,178,60,.6);pointer-events:none;display:none;z-index:5;left:0;}
+.lane{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel);}
+.lane-head{display:flex;align-items:center;gap:10px;padding:7px 10px;background:#181410;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.lane-name{font-family:var(--mono);font-size:12px;color:var(--ink);min-width:120px;flex:1;}
+.lane-btns{display:flex;gap:4px;}
+.lane-btns button{width:26px;height:24px;border-radius:6px;border:1px solid var(--line-strong);background:var(--raised);color:var(--dim);font-family:var(--mono);font-size:11px;cursor:pointer;}
+.lane-btns button.on{border-color:var(--amber);color:var(--amber);}
+.lane-s.on{border-color:var(--phos);color:var(--phos);}
+.lane-ctl{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);}
+.lane-ctl input[type=range]{width:88px;accent-color:var(--amber);}
+.lane-wave{height:54px;background:#070a08;}
+.lane-wave canvas{display:block;width:100%;height:100%;cursor:crosshair;}
+
 .kbwrap{margin-top:20px;}
 .kbmeta{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;}
 .kbmeta kbd{font-family:var(--mono);background:var(--raised);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink);font-size:11px;}
