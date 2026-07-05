@@ -75,3 +75,8 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
       Split preview + Sample/Lanes playback simultaneously. This extends the old
       four-path check to the new fifth playback path.
 - [ ] (EARS) Per-pad uploaded samples sound and time correctly with level/pitch controls.
+
+## Wobble Match
+- [ ] (EARS) Match Wobble from Track produces musically sensible Wobble/Growl starting
+      points on a real uploaded dubstep track. Synthetic rate recovery passing does not
+      validate real full-mix accuracy.

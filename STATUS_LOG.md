@@ -5,6 +5,24 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — FEATURE A: Wobble Match from reference track
+
+New module `js/wobblematch.js` plus a **Match Wobble from Track** button in Quick Split.
+- Reuses the currently loaded `WF.Player.buffer`; no second upload prompt.
+- Browser path runs a bass-band OfflineAudioContext filter pass (~40-250 Hz), then uses
+  cheap RMS-window envelope extraction.
+- Envelope autocorrelation estimates the dominant modulation rate, then snaps that rate
+  to the existing Wobble divisions instead of free-Hz values.
+- Depth is estimated from envelope dynamic range; LFO shape uses a simple
+  near-extremes-vs-transition duty heuristic (`square` / `sine` / `triangle`).
+- Output is loaded through `WF.Presets.apply()` as a normal editable preset named
+  "Matched Wobble Estimate"; no detected value is locked or authoritative.
+- UI readout explicitly labels the result as an estimated starting point.
+- Synthetic validation only: known square-LFO amplitude modulation recovers the expected
+  quantized division in headless tests. Real-track usefulness remains AUDIT_QUEUE.
+
+---
+
 ## 2026-07-04 — FEATURE: factory preset pack
 
 Added 9 factory presets to `js/presets.js` and exposed them through the existing Presets
