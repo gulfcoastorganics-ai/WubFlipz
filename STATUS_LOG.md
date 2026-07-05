@@ -5,6 +5,20 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — FEATURE: factory preset pack
+
+Added 9 factory presets to `js/presets.js` and exposed them through the existing Presets
+module UI via a Factory dropdown + Load Factory button.
+- Styles covered: Riddim Grind, Tearout Screech, Melodic Half-Time, Classic Brostep,
+  Deep Sub Roller, Chaos Growl, Future Riddim Clean, Swamp Stomp, Neuro Snap.
+- Each preset uses the full synth parameter surface and includes a sequencer payload with
+  non-silent 8x16 pattern data plus per-pad level/pitch references.
+- Factory loading goes through `WF.Presets.apply()`, the same path as local/uploaded
+  preset JSON.
+- Musical usefulness is not self-certified headlessly; it is tracked in `AUDIT_QUEUE.md`.
+
+---
+
 ## 2026-07-04 — FEATURE: step sequencer / drum pad
 
 New module `js/sequencer.js` (`WF.Sequencer`) plus a "Sequencer" board.

@@ -195,6 +195,15 @@
       .catch(() => flash($("presetMsg"), "Invalid preset file"));
     e.target.value = "";
   });
+  const factorySel = $("factoryPreset");
+  WF.Presets.FACTORY.forEach((p) => {
+    const o = document.createElement("option"); o.value = p.name; o.textContent = p.name; factorySel.appendChild(o);
+  });
+  $("factoryLoad").addEventListener("click", () => {
+    const ok = WF.Presets.loadFactory(factorySel.value);
+    $("presetName").value = factorySel.value;
+    flash($("presetMsg"), ok ? "Loaded factory" : "Factory load failed");
+  });
   let flashTimer = null;
   function flash(el, msg) { el.textContent = msg; clearTimeout(flashTimer); flashTimer = setTimeout(() => (el.textContent = ""), 2600); }
 

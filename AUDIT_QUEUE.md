@@ -63,6 +63,8 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
       C-major chord → "C major" r=0.63: PASS. Real mixes need a check.)
 
 ## Step Sequencer / Drum Pad
+- [ ] (EARS) Factory preset pack covers useful modern dubstep sub-styles by ear and
+      each preset's sequencer pattern feels appropriate to the patch.
 - [ ] (EARS) Default synthesized kit sounds musically usable by ear: kick, snare, clap,
       hats, tom, rim, and crash have useful character.
 - [ ] (EARS/EYES) Sync mode locks the sequencer to the Wobble BPM in real time, including
