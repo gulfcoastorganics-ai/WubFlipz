@@ -5,6 +5,26 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — FEATURE B: Sound Fuzzer / preset breeding
+
+New module `js/fuzzer.js` plus a **Fuzzer** board.
+- Uses the current active preset as the parent, including factory presets and matched
+  wobble estimates loaded by Feature A.
+- Generates six synth-only variants at a time, with favorite marking and a Breed action
+  that crosses over two or more favorites, then applies a light mutation pass.
+- Audition temporarily applies a variant, triggers one held low test note through the
+  live synth engine, then restores the previous preset.
+- Save promotes any variant through the existing preset system as a normal local preset.
+- Mutation bounds are centralized in `WF.Fuzzer.BOUNDS`: cutoff mutates logarithmically,
+  wobble divisions snap to adjacent quantized divisions, waveform flips are low
+  probability, and modulation/drive/master ranges stay inside usable limits.
+- Sequencer pattern mutation is intentionally deferred for v1; variants preserve the
+  parent sequencer state unchanged.
+- Headless validation covers syntax, DOM IDs, and 1000 mutation iterations with explicit
+  bounds assertions. Musical usefulness remains AUDIT_QUEUE.
+
+---
+
 ## 2026-07-05 — FEATURE A: Wobble Match from reference track
 
 New module `js/wobblematch.js` plus a **Match Wobble from Track** button in Quick Split.

@@ -80,3 +80,8 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 - [ ] (EARS) Match Wobble from Track produces musically sensible Wobble/Growl starting
       points on a real uploaded dubstep track. Synthetic rate recovery passing does not
       validate real full-mix accuracy.
+
+## Sound Fuzzer
+- [ ] (EARS) Generated variants sound like plausible, usable dubstep patches rather than
+      random parameter noise. Headless checks prove bounds only; the mutation table still
+      needs by-ear tuning if results are too chaotic or too conservative.

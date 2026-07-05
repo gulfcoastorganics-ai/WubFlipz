@@ -164,6 +164,18 @@
       <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
     </section>
 
+    <!-- SOUND FUZZER -->
+    <section class="board" id="fuzzerBoard" aria-label="Sound fuzzer preset breeding">
+      <div class="board-head"><h2>Fuzzer</h2><span class="board-sub">Preset breeding · synth params only</span></div>
+      <p class="board-note">Uses the current active preset as parent, including matched-wobble patches. Sequencer pattern mutation is deferred.</p>
+      <div class="btnrow">
+        <button class="tbtn" id="fuzzGenerate">Generate 6 Variants</button>
+        <button class="tbtn" id="fuzzBreed">Breed Favorites</button>
+      </div>
+      <p class="board-note" id="fuzzMsg">Generate variants from the current active preset.</p>
+      <div class="fuzz-grid" id="fuzzGrid"></div>
+    </section>
+
     <!-- ANALYZE (Stage 5) -->
     <section class="board" id="analyzeBoard" aria-label="Tempo and key detection">
       <div class="board-head"><h2>Analyze</h2><span class="board-sub">Tempo · Key · Beat Grid — estimates</span></div>
@@ -248,6 +260,7 @@
   <script src="js/analyze.js"></script>
   <script src="js/wobblematch.js"></script>
   <script src="js/sequencer.js"></script>
+  <script src="js/fuzzer.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/stopall.js"></script>
 </body>
