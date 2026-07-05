@@ -5,6 +5,44 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — POLISH P1: consolidated viz loop + honest live feedback
+
+Interaction/visual polish only; no new audio feature was added.
+- Added `js/vizloop.js` as the single `requestAnimationFrame` owner. Sample waveform,
+  lanes playhead, sequencer step pulse, scope, meters, FPS, and voice readouts register
+  callbacks with `WF.Viz.register(name, fn)`.
+- `WF.Viz` computes real FPS from a rolling ~30-frame delta average and parks when the
+  page is hidden or `prefers-reduced-motion: reduce` is active. Reduced motion gets a
+  static one-shot visual update instead of continuous animation.
+- Removed independent rAF loops from `ui.js`, `fileplayer.js`, and `lanes.js`.
+- Sequencer scheduler now publishes scheduled `{step,time}` events; the visual loop reads
+  due events and toggles `.playing`. No DOM writes happen inside `scheduleStep()`.
+- Scope renders the real synth analyser when synth voices are active and the file-player
+  analyser when the sample player is active. When all known playback paths are idle, it
+  renders a dim 1-2px random-walk noise floor. Because sequencer/lanes/stem preview live
+  in separate existing contexts with no permitted extra analysers, scope does not invent
+  fake waveform data for those paths.
+- Added one permitted post-`outCeiling` meter analyser on the synth final bus. Header peak
+  meter/hold ticks and clip latch are measured from that analyser. This does not include
+  the separate Sample/Lanes/Sequencer contexts, preserving the existing audio graph.
+- Keyboard keys now get `.active` from engine note hooks and clear on release/emergency
+  stop; this covers mouse, computer keyboard, and fuzzer audition note paths.
+- Analysis readouts now expose tempo autocorrelation peak prominence as confidence %
+  and key-profile correlation `r`, including runner-up key. Low confidence tints the
+  readout rather than hiding it.
+- CSS-only microinteractions added: button press/hover, panel hover, knob hover ring,
+  sequencer amber step pulse, keyboard press glow, preset-name load pulse. Knob tick
+  marks were skipped because the current SVG construction would require reworking every
+  knob render path.
+- Verified statically/headlessly: all JS passes `node --check`; only `js/vizloop.js`
+  references rAF/cancel rAF; DOM-id cross-check passes; sequencer visual step ordering
+  advances 0-15 from published scheduler events; `WF.Viz` parks under hidden/reduced
+  motion test harnesses; `git diff --check` passes. Chromium smoke was attempted but
+  this container's Chromium exits with code 133 in crashpad CPU-frequency probing before
+  returning a page.
+
+---
+
 ## 2026-07-05 — FEATURE C: Shareable preset URLs
 
 Extended the existing `WF.Presets` system with shareable patch links.

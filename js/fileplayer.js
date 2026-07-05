@@ -14,7 +14,7 @@
     view: { start: 0, end: 0 },
     loop: { on: false, a: 0, b: 0 },
     playing: false, pausedPos: 0, startCtxTime: 0, startOffset: 0,
-    source: null, gain: null, analyser: null, _manualStop: false, _sel: null, _raf: 0,
+    source: null, gain: null, analyser: null, _manualStop: false, _sel: null,
     onLoaded: [],   // Stage 3/4/5 hook: cb(buffer)
   };
   WF.Player = P;
@@ -77,17 +77,17 @@
     src.onended = () => { if (P._manualStop) return; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; updateButtons(); render(); };
     src.start(0, offset);
     P.source = src; P.startCtxTime = P.ctx.currentTime; P.startOffset = offset; P.playing = true;
-    updateButtons(); tick();
+    updateButtons(); render();
   }
   function pause() {
     if (!P.playing) return;
     P.pausedPos = position(); P._manualStop = true;
     try { P.source.stop(); } catch (e) {}
-    P.source = null; P.playing = false; cancelAnimationFrame(P._raf); updateButtons();
+    P.source = null; P.playing = false; updateButtons(); render();
   }
   function stop() {
     P._manualStop = true; try { P.source && P.source.stop(); } catch (e) {}
-    P.source = null; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; cancelAnimationFrame(P._raf); updateButtons(); render();
+    P.source = null; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; updateButtons(); render();
   }
   function emergencyStop() {
     if (!P.ctx) return;
@@ -97,7 +97,7 @@
       P.gain.gain.setValueAtTime(P.gain.gain.value, t);
       P.gain.gain.linearRampToValueAtTime(0, t + 0.01);
     }
-    P._manualStop = true; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; cancelAnimationFrame(P._raf);
+    P._manualStop = true; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0;
     const src = P.source; P.source = null;
     setTimeout(() => {
       try { src && src.stop(0); } catch (e) {}
@@ -155,8 +155,6 @@
     if (WF.Grid && WF.Grid.overlay) WF.Grid.overlay(g, { W, H, sx, timeToXcss, view: P.view }); // Stage 5 beat grid
     $("timeReadout").textContent = `${fmtTime(position())} / ${fmtTime(P.duration)}` + (P.loop.on ? `  ⟳ ${fmtTime(P.loop.a)}–${fmtTime(P.loop.b)}` : "");
   }
-  function tick() { render(); if (P.playing) P._raf = requestAnimationFrame(tick); }
-
   function updateButtons() {
     $("playBtn").textContent = P.playing ? "Pause" : "Play";
     $("playBtn").classList.toggle("on", P.playing);
@@ -196,6 +194,7 @@
     });
     window.addEventListener("resize", () => { if (P.summary) render(); });
     render();
+    if (WF.Viz) WF.Viz.register("sample-player", () => { if (P.playing) render(); });
   }
 
   Object.assign(P, { loadFile, play, pause, stop, emergencyStop, togglePlay, seek, setLoop, clearLoop, zoom, position, render });

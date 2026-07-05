@@ -44,7 +44,7 @@
   // ---- tempo via autocorrelation over a BPM search range ----
   function estimateTempo(env, rate) {
     const bpmMin = 70, bpmMax = 180, step = 0.25;
-    let best = { bpm: 140, score: -1 };
+    let best = { bpm: 140, score: -1 }, runner = { bpm: 140, score: -1 };
     const n = env.length;
     for (let bpm = bpmMin; bpm <= bpmMax; bpm += step) {
       const lag = Math.round((60 / bpm) * rate);
@@ -52,9 +52,13 @@
       let s = 0; for (let i = 0; i + lag < n; i++) s += env[i] * env[i + lag];
       // mild preference for the mid/typical range to reduce octave errors
       s *= 1 + 0.05 * Math.exp(-Math.pow((bpm - 140) / 60, 2));
-      if (s > best.score) best = { bpm, score: s };
+      if (s > best.score) { runner = best; best = { bpm, score: s }; }
+      else if (Math.abs(bpm - best.bpm) > 4 && s > runner.score) runner = { bpm, score: s };
     }
-    // octave sanity: compare with half / double if they land in range and score better per-beat
+    // Confidence maps autocorrelation peak prominence against the nearest competing
+    // tempo peak: 0 = indistinct peak, 1 = best peak is ~2.5x the runner-up.
+    const conf = best.score > 0 ? Math.max(0, Math.min(1, (best.score - Math.max(0, runner.score)) / (best.score * 0.6))) : 0;
+    best.confidence = conf; best.runner = runner;
     return best;
   }
 
@@ -96,14 +100,19 @@
       for (let i = 0; i < 12; i++) { const x = a[i] - ma, y = b[i] - mb; num += x * y; da += x * x; db += y * y; }
       return num / (Math.sqrt(da * db) + 1e-12);
     };
-    let best = { name: "—", score: -2, tonic: 0, mode: "major" };
+    let best = { name: "—", score: -2, tonic: 0, mode: "major" }, runner = { name: "—", score: -2 };
+    const consider = (cand) => {
+      if (cand.score > best.score) { runner = best; best = cand; }
+      else if (cand.score > runner.score && cand.name !== best.name) runner = cand;
+    };
     for (let t = 0; t < 12; t++) {
       const rotM = major.map((_, i) => major[(i - t + 12) % 12]);
       const rotm = minor.map((_, i) => minor[(i - t + 12) % 12]);
       const cM = corr(chroma, rotM), cm = corr(chroma, rotm);
-      if (cM > best.score) best = { name: NOTE[t] + " major", score: cM, tonic: t, mode: "major" };
-      if (cm > best.score) best = { name: NOTE[t] + " minor", score: cm, tonic: t, mode: "minor" };
+      consider({ name: NOTE[t] + " major", score: cM, tonic: t, mode: "major" });
+      consider({ name: NOTE[t] + " minor", score: cm, tonic: t, mode: "minor" });
     }
+    best.runner = runner;
     return best;
   }
 
@@ -145,7 +154,7 @@
     const tempo = estimateTempo(env, rate);
     const phase = estimatePhase(env, rate, tempo.bpm);
     const key = await estimateKey(mono, sr, onProgress);
-    return { bpm: tempo.bpm, phase, key, duration: buf.duration };
+    return { bpm: tempo.bpm, tempo, phase, key, duration: buf.duration };
   }
 
   // ---- UI ----
@@ -170,9 +179,11 @@
       busy = true; setProg(0); $("detConf").value = "analysing…";
       try {
         const r = await detect(WF.Player.buffer, setProg);
-        $("detBpm").value = Math.round(r.bpm);
+        $("detBpm").value = r.bpm.toFixed(1);
         $("detKey").value = r.key.name;
-        $("detConf").value = `key r=${r.key.score.toFixed(2)}`;
+        const tempoPct = Math.round((r.tempo.confidence || 0) * 100);
+        $("detConf").value = `${r.bpm.toFixed(1)} BPM · conf ${tempoPct}% · ${r.key.name} r=${r.key.score.toFixed(2)} · next ${r.key.runner.name} r=${r.key.runner.score.toFixed(2)}`;
+        $("detConf").classList.toggle("warn", (r.tempo.confidence || 0) < 0.35 || r.key.score < 0.45);
         WF.Grid.phase = r.phase;
         WF.Grid.set(Math.round(r.bpm), r.phase, r.duration);
         $("gridToggle").classList.add("on"); $("gridToggle").textContent = "Grid On";

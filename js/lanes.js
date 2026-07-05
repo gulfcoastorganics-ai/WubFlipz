@@ -11,7 +11,7 @@
   const fmt = (t) => { t = Math.max(0, t | 0); return `${(t / 60) | 0}:${String(t % 60).padStart(2, "0")}`; };
 
   const L = {
-    lanes: [], master: null, playing: false, startTime: 0, offset: 0, raf: 0,
+    lanes: [], master: null, playing: false, startTime: 0, offset: 0,
     settings: new Map(), // track.id -> {vol,pan,mute,solo}
   };
   WF.Lanes = L;
@@ -53,11 +53,11 @@
       let o = off; if (lp && lp.on && (o < lp.a || o >= lp.b)) o = lp.a;
       s.start(t0, o); l.source = s;
     });
-    L.startTime = t0; L.offset = off; L.playing = true; applyGains(); updateBtns(); tick();
+    L.startTime = t0; L.offset = off; L.playing = true; applyGains(); updateBtns(); drawPlayhead();
   }
   function stopSources(when) { L.lanes.forEach((l) => { if (l.source) { try { l.source.stop(when); } catch (e) {} l.source = null; } }); }
-  function pause() { if (!L.playing) return; L.offset = position(); stopSources(); L.playing = false; cancelAnimationFrame(L.raf); updateBtns(); }
-  function stop() { const lp = WF.Player && WF.Player.loop; stopSources(); if (WF.Stems && WF.Stems.stopPreview) WF.Stems.stopPreview(); L.playing = false; L.offset = lp && lp.on ? lp.a : 0; cancelAnimationFrame(L.raf); updateBtns(); drawPlayhead(); }
+  function pause() { if (!L.playing) return; L.offset = position(); stopSources(); L.playing = false; updateBtns(); drawPlayhead(); }
+  function stop() { const lp = WF.Player && WF.Player.loop; stopSources(); if (WF.Stems && WF.Stems.stopPreview) WF.Stems.stopPreview(); L.playing = false; L.offset = lp && lp.on ? lp.a : 0; updateBtns(); drawPlayhead(); }
   function emergencyStop() {
     const c = ctx();
     if (c && L.master) {
@@ -66,7 +66,7 @@
       L.master.gain.setValueAtTime(L.master.gain.value, t);
       L.master.gain.linearRampToValueAtTime(0, t + 0.01);
     }
-    L.playing = false; L.offset = 0; cancelAnimationFrame(L.raf);
+    L.playing = false; L.offset = 0;
     const sources = L.lanes.map((l) => { const s = l.source; l.source = null; return s; });
     setTimeout(() => {
       sources.forEach((s) => { try { s && s.stop(0); } catch (e) {} });
@@ -77,11 +77,10 @@
   function toggle() { L.playing ? pause() : play(); }
   function seek(t) { t = Math.max(0, Math.min(maxDur(), t)); if (L.playing) { pause(); L.offset = t; play(); } else { L.offset = t; drawPlayhead(); } }
 
-  function tick() {
+  function tickVisual() {
     drawPlayhead();
     const lp = WF.Player && WF.Player.loop;
     if (L.playing && !(lp && lp.on) && position() >= maxDur() - 1e-3) { stop(); return; }
-    if (L.playing) L.raf = requestAnimationFrame(tick);
   }
 
   // ---- rendering ----
@@ -172,6 +171,7 @@
     $("lanesPlay").addEventListener("click", toggle);
     $("lanesStop").addEventListener("click", stop);
     window.addEventListener("resize", () => L.lanes.forEach(drawLaneWave));
+    if (WF.Viz) WF.Viz.register("lanes-playhead", () => { if (L.playing) tickVisual(); });
     if (WF.Tracks) { WF.Tracks.onChange.push(rebuild); rebuild(WF.Tracks.list); }
   }
 

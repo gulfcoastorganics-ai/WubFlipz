@@ -183,6 +183,7 @@
   });
   $("presetLoad").addEventListener("click", () => {
     const ok = WF.Presets.loadLocal();
+    if (ok) pulsePresetName();
     flash($("presetMsg"), ok ? "Loaded from browser" : "No saved preset");
   });
   $("presetDownload").addEventListener("click", () => {
@@ -196,7 +197,7 @@
   });
   $("presetFile").addEventListener("change", (e) => {
     const f = e.target.files[0]; if (!f) return;
-    WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); flash($("presetMsg"), "Loaded " + f.name); })
+    WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); pulsePresetName(); flash($("presetMsg"), "Loaded " + f.name); })
       .catch(() => flash($("presetMsg"), "Invalid preset file"));
     e.target.value = "";
   });
@@ -207,10 +208,17 @@
   $("factoryLoad").addEventListener("click", () => {
     const ok = WF.Presets.loadFactory(factorySel.value);
     $("presetName").value = factorySel.value;
+    if (ok) pulsePresetName();
     flash($("presetMsg"), ok ? "Loaded factory" : "Factory load failed");
   });
   let flashTimer = null;
   function flash(el, msg) { el.textContent = msg; clearTimeout(flashTimer); flashTimer = setTimeout(() => (el.textContent = ""), 2600); }
+  function pulsePresetName() {
+    const el = $("presetName");
+    el.classList.remove("preset-pulse");
+    void el.offsetWidth;
+    el.classList.add("preset-pulse");
+  }
 
   // -------------------------------------------------------------- refresh (after preset load)
   WF.UI = {
@@ -274,7 +282,11 @@
   function press(midi) { if (pressed.has(midi)) return; pressed.add(midi); E.noteOn(midi); markKey(midi, true); }
   function release(midi) { if (!pressed.has(midi)) return; pressed.delete(midi); E.noteOff(midi); markKey(midi, false); }
   function clearPressedKeys() { for (const m of [...pressed]) { pressed.delete(m); markKey(m, false); } }
-  function markKey(midi, down) { const off = midi - (BASE + state.octave * 12); const el = keyEls.get(off); if (el) el.classList.toggle("down", down); }
+  function markKey(midi, down) {
+    const off = midi - (BASE + state.octave * 12);
+    const el = keyEls.get(off);
+    if (el) { el.classList.toggle("down", down); el.classList.toggle("active", down); }
+  }
 
   function bindKeyPointers() {
     let mouseDown = false;
@@ -297,6 +309,8 @@
   window.addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); if (k in KEYMAP) release(BASE + state.octave * 12 + KEYMAP[k]); });
   window.addEventListener("blur", () => { for (const m of [...pressed]) release(m); E.allNotesOff(); });
   window.addEventListener("wf:emergency-stop", clearPressedKeys);
+  E._onNoteOn = (midi) => markKey(midi, true);
+  E._onNoteOff = (midi) => markKey(midi, false);
 
   // -------------------------------------------------------------- power + readouts
   function setStatus(on) {
@@ -313,8 +327,12 @@
     $("baseLat").textContent = E.ctx.baseLatency ? Math.round(E.ctx.baseLatency * 1000) + " ms" : "interactive";
     updateRateReadout();
   };
-  E._onVoices = (n) => { $("voices").textContent = n + (n === 1 ? " voice" : " voices") + " / " + E.MAX_VOICES; };
+  E._onVoices = (n) => {
+    $("voices").textContent = n + (n === 1 ? " voice" : " voices") + " / " + E.MAX_VOICES;
+    $("hdrVoices").textContent = `${n}/${E.MAX_VOICES}`;
+  };
   $("voices").textContent = "0 voices / " + E.MAX_VOICES;
+  $("hdrVoices").textContent = `0/${E.MAX_VOICES}`;
 
   // -------------------------------------------------------------- canvases
   const envcv = $("envcv"), envx = envcv.getContext("2d");
@@ -341,29 +359,76 @@
     [[tx(a), ty(1)], [tx(a + d), ty(s)], [tx(a + d + 0.4), ty(s)]].forEach(([x, y]) => { envx.beginPath(); envx.arc(x, y, 2.4 * dpr, 0, 7); envx.fill(); });
     $("envState").textContent = `${Math.round(a * 1000)}·${Math.round(d * 1000)}·${Math.round(s * 100)}%·${Math.round(r * 1000)}`;
   }
-  function drawScope() {
-    requestAnimationFrame(drawScope);
+  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0;
+  $("clipLed").addEventListener("click", () => { clipLatched = false; $("clipLed").classList.remove("clipped"); $("clipLed").setAttribute("aria-pressed", "false"); });
+  function audioVisualActive() {
+    return E.voiceCount() > 0 ||
+      (WF.Player && WF.Player.playing) ||
+      (WF.Lanes && WF.Lanes.playing) ||
+      (WF.Sequencer && WF.Sequencer.playing);
+  }
+  function drawIdleNoise(g, W, H, dpr) {
+    const amp = 1.5 * dpr, points = 96;
+    g.lineWidth = 1.25 * dpr; g.strokeStyle = "rgba(111,228,166,0.30)"; g.shadowBlur = 0;
+    g.beginPath();
+    for (let i = 0; i <= points; i++) {
+      idleWalk = Math.max(-1, Math.min(1, idleWalk + (Math.random() - 0.5) * 0.22));
+      const x = (i / points) * W;
+      const y = H / 2 + idleWalk * amp + (Math.random() - 0.5) * 0.7 * dpr;
+      i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  function drawMeters(ts) {
+    $("hdrFps").textContent = WF.Viz && WF.Viz.fps ? Math.round(WF.Viz.fps) : "--";
+    if (E._onVoices) $("hdrVoices").textContent = `${E.voiceCount()}/${E.MAX_VOICES}`;
+    const peak = E.getOutputPeak ? E.getOutputPeak() : { mono: 0, left: 0, right: 0 };
+    const v = Math.max(0, Math.min(1, peak.mono || 0));
+    $("meterL").style.width = `${(v * 100).toFixed(1)}%`;
+    $("meterR").style.width = `${(v * 100).toFixed(1)}%`;
+    if (v >= holdPeak || ts > holdUntil) { holdPeak = v; holdUntil = ts + 1000; }
+    else if (ts > holdUntil - 1000) holdPeak = Math.max(v, holdPeak - 0.006);
+    $("holdL").style.left = `${(holdPeak * 100).toFixed(1)}%`;
+    $("holdR").style.left = `${(holdPeak * 100).toFixed(1)}%`;
+    if (v >= Math.pow(10, -0.1 / 20)) {
+      clipLatched = true;
+      $("clipLed").classList.add("clipped");
+      $("clipLed").setAttribute("aria-pressed", "true");
+    }
+  }
+  function drawScope(ts) {
     const dpr = sizeCanvas(scopecv), W = scopecv.width, H = scopecv.height;
     scx.clearRect(0, 0, W, H);
     scx.strokeStyle = "rgba(111,228,166,0.10)"; scx.lineWidth = 1 * dpr;
     scx.beginPath(); scx.moveTo(0, H / 2); scx.lineTo(W, H / 2); scx.stroke();
-    if (!E.started) return;
-    const buf = E.scopeBuffer; if (!buf) return;
-    E.getTimeData(buf);
-    let start = 0; for (let i = 1; i < buf.length / 2; i++) { if (buf[i - 1] < 0 && buf[i] >= 0) { start = i; break; } }
-    const span = Math.floor(buf.length / 2);
-    scx.lineWidth = 2 * dpr; scx.strokeStyle = "#6fe4a6"; scx.shadowColor = "rgba(111,228,166,0.7)"; scx.shadowBlur = 6 * dpr;
-    scx.beginPath();
-    for (let i = 0; i < span; i++) { const v = buf[start + i] || 0; const x = (i / span) * W; const y = H / 2 - v * (H * 0.42); i === 0 ? scx.moveTo(x, y) : scx.lineTo(x, y); }
-    scx.stroke(); scx.shadowBlur = 0;
+    const active = audioVisualActive();
+    let buf = null;
+    if (E.started && E.scopeBuffer && E.voiceCount() > 0) {
+      buf = E.scopeBuffer;
+      E.getTimeData(buf);
+    } else if (WF.Player && WF.Player.playing && WF.Player.analyser) {
+      buf = E.scopeBuffer || new Float32Array(WF.Player.analyser.fftSize);
+      WF.Player.analyser.getFloatTimeDomainData(buf);
+    }
+    if (buf && active) {
+      let start = 0; for (let i = 1; i < buf.length / 2; i++) { if (buf[i - 1] < 0 && buf[i] >= 0) { start = i; break; } }
+      const span = Math.floor(buf.length / 2);
+      scx.lineWidth = 2 * dpr; scx.strokeStyle = "#6fe4a6"; scx.shadowColor = "rgba(111,228,166,0.7)"; scx.shadowBlur = 6 * dpr;
+      scx.beginPath();
+      for (let i = 0; i < span; i++) { const v = buf[start + i] || 0; const x = (i / span) * W; const y = H / 2 - v * (H * 0.42); i === 0 ? scx.moveTo(x, y) : scx.lineTo(x, y); }
+      scx.stroke(); scx.shadowBlur = 0;
+    } else if (!active) drawIdleNoise(scx, W, H, dpr);
     if (E.getReduction) { const gr = E.getReduction(); $("compGR").textContent = `${gr.top.toFixed(1)} / ${gr.sub.toFixed(1)} / ${gr.out.toFixed(1)} dB`; }
+    drawMeters(ts || performance.now());
   }
-  drawEnv(); requestAnimationFrame(drawScope);
+  drawEnv();
+  if (WF.Viz) WF.Viz.register("synth-scope-meters", drawScope);
   window.addEventListener("resize", drawEnv);
 
   const hashPreset = WF.Presets.loadFromHash();
   if (hashPreset && hashPreset.name) {
     $("presetName").value = hashPreset.name;
+    pulsePresetName();
     flash($("presetMsg"), "Loaded URL patch");
   }
 

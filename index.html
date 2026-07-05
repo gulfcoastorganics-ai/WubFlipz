@@ -22,6 +22,15 @@
         <span class="model">WF-1 · Wobble Bass</span>
       </div>
       <div class="power">
+        <div class="head-stats" aria-label="Live visual status">
+          <span>VOICES: <b id="hdrVoices">0/16</b></span>
+          <span>FPS: <b id="hdrFps">--</b></span>
+        </div>
+        <div class="out-meter" aria-label="Output peak meter">
+          <div class="meter-rail"><span id="meterL"></span><i id="holdL"></i></div>
+          <div class="meter-rail"><span id="meterR"></span><i id="holdR"></i></div>
+          <button class="clip-led" id="clipLed" type="button" aria-pressed="false" title="Click to reset clip light">CLIP</button>
+        </div>
         <span class="led" id="led"></span>
         <span class="status" id="status">Standby</span>
         <button class="panic" id="panicStop" aria-label="Emergency stop all audio">Emergency Stop</button>
@@ -253,6 +262,7 @@
 
   <script src="js/engine.js"></script>
   <script src="js/presets.js"></script>
+  <script src="js/vizloop.js"></script>
   <script src="js/waveform.js"></script>
   <script src="js/fileplayer.js"></script>
   <script src="js/fft.js"></script>

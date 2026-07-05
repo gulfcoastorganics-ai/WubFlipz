@@ -85,3 +85,8 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 - [ ] (EARS) Generated variants sound like plausible, usable dubstep patches rather than
       random parameter noise. Headless checks prove bounds only; the mutation table still
       needs by-ear tuning if results are too chaotic or too conservative.
+
+## Polish P1 — visual / interaction pass
+- [ ] (EARS/EYES) P1 by-ear/by-eye pass — step pulse feels tight to the beat at 140 and
+      174 BPM; meters track loudness believably; noise floor is subtle not distracting;
+      key flash latency is imperceptible.

@@ -63,6 +63,7 @@
   const N = {}; // shared graph nodes
   const voices = new Map(); // playedMidi -> voice object
   let scopeBuf = null;
+  let meterBuf = null;
 
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
   const eqp = (mix) => [Math.cos(mix * Math.PI / 2), Math.sin(mix * Math.PI / 2)];
@@ -106,9 +107,11 @@
     N.outCeiling.threshold.value = -1.0; N.outCeiling.knee.value = 0; N.outCeiling.ratio.value = 20;
     N.outCeiling.attack.value = 0.001; N.outCeiling.release.value = 0.05;
     N.analyser = ctx.createAnalyser(); N.analyser.fftSize = 2048;
+    N.meterAnalyser = ctx.createAnalyser(); N.meterAnalyser.fftSize = 2048;
     N.sumBus.connect(N.master);
     N.master.connect(N.outCeiling);
     N.outCeiling.connect(N.analyser);
+    N.outCeiling.connect(N.meterAnalyser);
     N.analyser.connect(ctx.destination);
 
     // top layer: filter -> saturation -> its own limiter -> sum
@@ -160,6 +163,7 @@
 
     A.started = true;
     scopeBuf = new Float32Array(N.analyser.fftSize);
+    meterBuf = new Float32Array(N.meterAnalyser.fftSize);
     WF.Engine._onStart && WF.Engine._onStart();
   }
 
@@ -226,12 +230,14 @@
     oscA.onended = () => { disposeVoice(v); WF.Engine._onVoices && WF.Engine._onVoices(voices.size); };
     voices.set(playedMidi, v);
     WF.Engine._onVoices && WF.Engine._onVoices(voices.size);
+    WF.Engine._onNoteOn && WF.Engine._onNoteOn(playedMidi);
   }
 
   function noteOff(playedMidi, fast = false) {
     const v = voices.get(playedMidi);
     if (!v) return;
     voices.delete(playedMidi);
+    WF.Engine._onNoteOff && WF.Engine._onNoteOff(playedMidi);
     const t = A.ctx.currentTime;
     const rel = fast ? 0.03 : state.release;
     for (const g of [v.vca.gain, v.subVCA.gain]) {
@@ -255,6 +261,7 @@
     }
     setTimeout(() => {
       for (const v of [...voices.values()]) {
+        WF.Engine._onNoteOff && WF.Engine._onNoteOff(v.playedMidi);
         try { v.vca.gain.cancelScheduledValues(A.ctx.currentTime); v.vca.gain.setValueAtTime(0, A.ctx.currentTime); } catch (e) {}
         try { v.subVCA.gain.cancelScheduledValues(A.ctx.currentTime); v.subVCA.gain.setValueAtTime(0, A.ctx.currentTime); } catch (e) {}
         try { v.oscA.stop(0); } catch (e) {}
@@ -324,10 +331,19 @@
     get started() { return A.started; },
     voiceCount: () => voices.size,
     getTimeData: (buf) => { if (N.analyser) N.analyser.getFloatTimeDomainData(buf); return buf; },
+    getOutputPeak() {
+      if (!N.meterAnalyser || !meterBuf) return { mono: 0, left: 0, right: 0 };
+      N.meterAnalyser.getFloatTimeDomainData(meterBuf);
+      let peak = 0;
+      for (let i = 0; i < meterBuf.length; i++) peak = Math.max(peak, Math.abs(meterBuf[i]));
+      return { mono: peak, left: peak, right: peak };
+    },
     getReduction: () => ({ top: N.topLimiter ? N.topLimiter.reduction : 0, sub: N.subCeiling ? N.subCeiling.reduction : 0, out: N.outCeiling ? N.outCeiling.reduction : 0 }),
     get scopeBuffer() { return scopeBuf; },
     _onStart: null,   // set by ui
     _onVoices: null,  // set by ui
+    _onNoteOn: null,  // set by ui
+    _onNoteOff: null, // set by ui
     MAX_VOICES,
   };
 })();

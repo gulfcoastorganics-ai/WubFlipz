@@ -24,6 +24,7 @@
     pads: PAD_NAMES.map((name) => ({ name, level: 0.85, pitch: 0, sample: null, sampleName: "" })),
     voices: new Set(),
     _scheduledLog: [],
+    _stepEvents: [], _visualStep: -1,
   };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -126,8 +127,8 @@
   function scheduleStep(step, time) {
     S.currentStep = step;
     S._scheduledLog.push({ step, time });
+    S._stepEvents.push({ step, time });
     for (let p = 0; p < S.pattern.length; p++) if (S.pattern[p][step]) playSynth(p, time);
-    setTimeout(() => paintPlayhead(step), Math.max(0, (time - S.ctx.currentTime) * 1000));
   }
   function advance() {
     S.nextTime += stepDur(activeBpm());
@@ -140,12 +141,12 @@
   function play() {
     ensureAudio(); if (S.playing) return;
     S.master.gain.cancelScheduledValues(S.ctx.currentTime); S.master.gain.setValueAtTime(1, S.ctx.currentTime);
-    S.playing = true; S.nextStep = S.currentStep || 0; S.nextTime = S.ctx.currentTime + 0.05; S._scheduledLog = [];
+    S.playing = true; S.nextStep = S.currentStep || 0; S.nextTime = S.ctx.currentTime + 0.05; S._scheduledLog = []; S._stepEvents = [];
     S.timer = setInterval(schedulerTick, TICK_MS); schedulerTick(); updateButtons();
   }
   function pause() { if (!S.playing) return; clearInterval(S.timer); S.timer = 0; S.playing = false; updateButtons(); }
   function stop() {
-    clearInterval(S.timer); S.timer = 0; S.playing = false; S.currentStep = 0; S.nextStep = 0; stopActiveVoices(); updateButtons(); paintPlayhead(-1);
+    clearInterval(S.timer); S.timer = 0; S.playing = false; S.currentStep = 0; S.nextStep = 0; S._stepEvents = []; S._visualStep = -1; stopActiveVoices(); updateButtons(); paintPlayhead(-1);
   }
   function stopActiveVoices() {
     if (!S.ctx) return;
@@ -153,8 +154,8 @@
     for (const v of [...S.voices]) { stopVoice(v, t); S.voices.delete(v); }
   }
   function emergencyStop() {
-    if (!S.ctx) { S.playing = false; clearInterval(S.timer); S.timer = 0; updateButtons(); paintPlayhead(-1); return; }
-    clearInterval(S.timer); S.timer = 0; S.playing = false; S.currentStep = 0; S.nextStep = 0;
+    if (!S.ctx) { S.playing = false; clearInterval(S.timer); S.timer = 0; S._stepEvents = []; S._visualStep = -1; updateButtons(); paintPlayhead(-1); return; }
+    clearInterval(S.timer); S.timer = 0; S.playing = false; S.currentStep = 0; S.nextStep = 0; S._stepEvents = []; S._visualStep = -1;
     const t = S.ctx.currentTime;
     S.master.gain.cancelScheduledValues(t); S.master.gain.setValueAtTime(S.master.gain.value, t); S.master.gain.linearRampToValueAtTime(0, t + 0.01);
     for (const v of [...S.voices]) { stopVoice(v, t); S.voices.delete(v); }
@@ -219,6 +220,18 @@
     if (step >= 0) document.querySelectorAll(`.seq-cell[data-step="${step}"]`).forEach((c) => c.classList.add("playing"));
     const r = $("seqReadout"); if (r) r.textContent = `step ${step >= 0 ? step + 1 : 1} / ${STEPS}`;
   }
+  function updateVisualStep() {
+    if (!S.playing || !S.ctx) {
+      if (S._visualStep !== -1) { S._visualStep = -1; paintPlayhead(-1); }
+      return;
+    }
+    let due = null;
+    while (S._stepEvents.length && S._stepEvents[0].time <= S.ctx.currentTime) due = S._stepEvents.shift();
+    if (due && due.step !== S._visualStep) {
+      S._visualStep = due.step;
+      paintPlayhead(due.step);
+    }
+  }
   function refreshGrid() {
     document.querySelectorAll(".seq-cell").forEach((c) => c.classList.toggle("on", !!S.pattern[+c.dataset.row][+c.dataset.step]));
   }
@@ -253,6 +266,7 @@
     $("seqBpm").addEventListener("input", (e) => setBpm(e.target.value, true));
     const synth = $("bpm");
     if (synth) synth.addEventListener("input", () => { if (S.sync) setBpm(synth.value, false); });
+    if (WF.Viz) WF.Viz.register("sequencer-step", updateVisualStep);
   }
 
   function testSchedule(bpm, loops) {
@@ -261,6 +275,6 @@
     return out;
   }
 
-  WF.Sequencer = Object.assign(S, { ensureAudio, play, pause, stop, emergencyStop, capture, apply, activeBpm, testSchedule, _constants: { STEPS, TICK_MS, LOOKAHEAD } });
+  WF.Sequencer = Object.assign(S, { ensureAudio, play, pause, stop, emergencyStop, capture, apply, activeBpm, testSchedule, updateVisualStep, _constants: { STEPS, TICK_MS, LOOKAHEAD } });
   if ($("seqBoard")) initUI();
 })();
