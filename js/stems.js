@@ -148,17 +148,43 @@
       const ok = runMidSide(WF.Player.buffer, WF.Player.ctx);
       status(ok ? "Mid/Side done — vocal-removed + isolate added below." : "Mid/Side needs a STEREO file (this one is mono).");
     });
+    $("splitPreviewStop").addEventListener("click", stopPreview);
 
     // stem list with tiny preview (full mixer is Stage 4)
     Tracks.onChange.push(renderList);
     renderList(Tracks.list);
   }
 
-  let previewSrc = null;
+  let previewSrc = null, previewGain = null;
+  function ensurePreviewGain(ctx) {
+    if (!previewGain) {
+      previewGain = ctx.createGain();
+      previewGain.gain.value = 1;
+      previewGain.connect(ctx.destination);
+    }
+    return previewGain;
+  }
+  function stopPreview() {
+    if (previewSrc) { try { previewSrc.stop(0); } catch (e) {} previewSrc = null; }
+  }
+  function emergencyStop() {
+    const ctx = WF.Player && WF.Player.ctx;
+    if (ctx && previewGain) {
+      const t = ctx.currentTime;
+      previewGain.gain.cancelScheduledValues(t);
+      previewGain.gain.setValueAtTime(previewGain.gain.value, t);
+      previewGain.gain.linearRampToValueAtTime(0, t + 0.01);
+    }
+    const src = previewSrc; previewSrc = null;
+    setTimeout(() => {
+      try { src && src.stop(0); } catch (e) {}
+      if (ctx && previewGain) previewGain.gain.setValueAtTime(1, ctx.currentTime);
+    }, ctx ? 12 : 0);
+  }
   function preview(buffer) {
     const ctx = WF.Player.ctx; if (!ctx) return;
-    if (previewSrc) { try { previewSrc.stop(); } catch (e) {} previewSrc = null; }
-    const s = ctx.createBufferSource(); s.buffer = buffer; s.connect(ctx.destination); s.onended = () => (previewSrc = null); s.start(); previewSrc = s;
+    stopPreview();
+    const s = ctx.createBufferSource(); s.buffer = buffer; s.connect(ensurePreviewGain(ctx)); s.onended = () => (previewSrc = null); s.start(); previewSrc = s;
   }
   function renderList(list) {
     const el = $("stemList"); if (!el) return;
@@ -173,6 +199,6 @@
     });
   }
 
-  WF.Stems = { hpss, midSide, runHPSS, runMidSide, Tracks };
+  WF.Stems = { hpss, midSide, runHPSS, runMidSide, stopPreview, emergencyStop, Tracks };
   if ($("quickSplitBoard")) initUI();
 })();

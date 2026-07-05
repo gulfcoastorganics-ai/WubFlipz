@@ -24,6 +24,7 @@
       <div class="power">
         <span class="led" id="led"></span>
         <span class="status" id="status">Standby</span>
+        <button class="panic" id="panicStop" aria-label="Emergency stop all audio">Emergency Stop</button>
         <button class="pwr" id="pwr" aria-pressed="false">Power</button>
       </div>
     </header>
@@ -183,10 +184,26 @@
       <div class="btnrow">
         <button class="tbtn" id="splitHP">Harmonic / Percussive (HPSS)</button>
         <button class="tbtn" id="splitMS">Vocal Remove / Isolate (Mid-Side)</button>
+        <button class="tbtn" id="splitPreviewStop">Stop Preview</button>
       </div>
       <div class="progress" id="splitProg"><div class="bar" id="splitBar"></div></div>
       <div class="board-note" id="splitStatus"></div>
       <div id="stemList" class="stem-list"></div>
+    </section>
+
+    <!-- STEP SEQUENCER / DRUM PAD -->
+    <section class="board" id="seqBoard" aria-label="Step sequencer and drum pads">
+      <div class="board-head"><h2>Sequencer</h2><span class="board-sub">8-pad drum kit · fixed 16-step loop</span></div>
+      <div class="transport seq-transport">
+        <button class="tbtn" id="seqPlay">Play</button>
+        <button class="tbtn" id="seqStop">Stop</button>
+        <label class="fld seq-bpm"><span>BPM</span><input type="number" id="seqBpm" min="40" max="300" step="1" /></label>
+        <button class="toggle" id="seqSync" aria-pressed="true">Sync</button>
+        <span class="treadout" id="seqReadout">step 1 / 16</span>
+      </div>
+      <div class="seq-grid" id="seqGrid"></div>
+      <div class="seq-pads" id="seqPads"></div>
+      <p class="board-note">V1 is fixed 16-step binary on/off. Pattern length variants, swing, humanize, and per-step velocity/accent are deferred.</p>
     </section>
 
     <!-- LANES (Stage 4) -->
@@ -223,6 +240,8 @@
   <script src="js/stems.js"></script>
   <script src="js/lanes.js"></script>
   <script src="js/analyze.js"></script>
+  <script src="js/sequencer.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/stopall.js"></script>
 </body>
 </html>

@@ -32,6 +32,7 @@
   async function loadFile(file) {
     if (!file) return;
     ensureCtx();
+    emergencyStop();
     $("fileName").textContent = file.name;
     setProgress(0, "decoding…");
     let ab;
@@ -82,11 +83,27 @@
     if (!P.playing) return;
     P.pausedPos = position(); P._manualStop = true;
     try { P.source.stop(); } catch (e) {}
-    P.playing = false; updateButtons();
+    P.source = null; P.playing = false; cancelAnimationFrame(P._raf); updateButtons();
   }
   function stop() {
     P._manualStop = true; try { P.source && P.source.stop(); } catch (e) {}
-    P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; updateButtons(); render();
+    P.source = null; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; cancelAnimationFrame(P._raf); updateButtons(); render();
+  }
+  function emergencyStop() {
+    if (!P.ctx) return;
+    const t = P.ctx.currentTime;
+    if (P.gain) {
+      P.gain.gain.cancelScheduledValues(t);
+      P.gain.gain.setValueAtTime(P.gain.gain.value, t);
+      P.gain.gain.linearRampToValueAtTime(0, t + 0.01);
+    }
+    P._manualStop = true; P.playing = false; P.pausedPos = P.loop.on ? P.loop.a : 0; cancelAnimationFrame(P._raf);
+    const src = P.source; P.source = null;
+    setTimeout(() => {
+      try { src && src.stop(0); } catch (e) {}
+      if (P.gain) P.gain.gain.setValueAtTime(1, P.ctx.currentTime);
+      updateButtons(); render();
+    }, 12);
   }
   function togglePlay() { P.playing ? pause() : play(); }
   function seek(t) {
@@ -154,7 +171,7 @@
     dz.addEventListener("drop", (e) => { e.preventDefault(); dz.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
     $("fileInput").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) loadFile(f); e.target.value = ""; });
     $("playBtn").addEventListener("click", togglePlay);
-    $("stopBtn").addEventListener("click", stop);
+    $("stopBtn").addEventListener("click", () => { stop(); if (WF.Stems && WF.Stems.stopPreview) WF.Stems.stopPreview(); });
     $("loopBtn").addEventListener("click", () => { if (P.loop.on) clearLoop(); else if (P.buffer) setLoop(P.view.start, P.view.end); });
     $("clearLoopBtn").addEventListener("click", clearLoop);
     $("zoomInBtn").addEventListener("click", () => zoom(0.5));
@@ -181,6 +198,6 @@
     render();
   }
 
-  Object.assign(P, { loadFile, play, pause, stop, togglePlay, seek, setLoop, clearLoop, zoom, position, render });
+  Object.assign(P, { loadFile, play, pause, stop, emergencyStop, togglePlay, seek, setLoop, clearLoop, zoom, position, render });
   if (document.getElementById("dropzone")) initUI();
 })();

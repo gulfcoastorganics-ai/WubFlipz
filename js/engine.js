@@ -245,6 +245,29 @@
 
   function allNotesOff() { for (const m of [...voices.keys()]) noteOff(m, true); }
 
+  function emergencyStop() {
+    if (!A.ctx) return;
+    const t = A.ctx.currentTime;
+    if (N.master) {
+      N.master.gain.cancelScheduledValues(t);
+      N.master.gain.setValueAtTime(N.master.gain.value, t);
+      N.master.gain.linearRampToValueAtTime(0, t + 0.01);
+    }
+    setTimeout(() => {
+      for (const v of [...voices.values()]) {
+        try { v.vca.gain.cancelScheduledValues(A.ctx.currentTime); v.vca.gain.setValueAtTime(0, A.ctx.currentTime); } catch (e) {}
+        try { v.subVCA.gain.cancelScheduledValues(A.ctx.currentTime); v.subVCA.gain.setValueAtTime(0, A.ctx.currentTime); } catch (e) {}
+        try { v.oscA.stop(0); } catch (e) {}
+        try { v.oscB.stop(0); } catch (e) {}
+        try { v.subOsc.stop(0); } catch (e) {}
+        disposeVoice(v);
+      }
+      voices.clear();
+      if (N.master) N.master.gain.setValueAtTime(state.master, A.ctx.currentTime);
+      WF.Engine._onVoices && WF.Engine._onVoices(0);
+    }, 12);
+  }
+
   // -------------------------------------------------------------- live params
   function onParam(param) {
     if (!A.started) return;
@@ -296,7 +319,7 @@
 
   // -------------------------------------------------------------- API
   WF.Engine = {
-    ensureAudio, noteOn, noteOff, allNotesOff, onParam, syncAll, wobbleHz,
+    ensureAudio, noteOn, noteOff, allNotesOff, emergencyStop, onParam, syncAll, wobbleHz,
     get ctx() { return A.ctx; },
     get started() { return A.started; },
     voiceCount: () => voices.size,

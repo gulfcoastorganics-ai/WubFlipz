@@ -11,6 +11,13 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ## Bugfixes
 
+- [x] (EARS) **Emergency Stop / Stop leak** — with a sample loaded, a Quick Split preview
+      playing, multiple Lanes playing, and at least one synth note ringing/releasing,
+      confirm regular Stop controls silence their sections and the red **Emergency Stop**
+      silences **everything** immediately. Check both regular Stop and Emergency Stop
+      separately in a real browser. Closed from user report that everything sounds good;
+      code/smoke re-check also confirmed Stop-All still includes Synth/Sample/Lanes/Stems
+      before Sequencer work began.
 - [ ] (EARS) **BUGFIX A** — final safety brickwall (`outCeiling`, thr −1 dB) reads
       **0.0 dB** on the "Comp GR top/sub/out" meter at normal playing levels, and the
       sub does **not** wobble under a heavy Wobble+Growl preset on a low note. Confirm
@@ -54,3 +61,15 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
       to grid feels right.
 - [ ] (EARS/EYES) Detected key on a **real track** is plausible and editable. (Synthetic
       C-major chord → "C major" r=0.63: PASS. Real mixes need a check.)
+
+## Step Sequencer / Drum Pad
+- [ ] (EARS) Default synthesized kit sounds musically usable by ear: kick, snare, clap,
+      hats, tom, rim, and crash have useful character.
+- [ ] (EARS/EYES) Sync mode locks the sequencer to the Wobble BPM in real time, including
+      live BPM changes mid-playback and Stage 5 tempo auto-fill.
+- [ ] (EARS) Drums do **not** wobble or duck under heavy Wobble+Growl synth settings, and
+      the synth does not duck under a busy drum pattern.
+- [ ] (EARS) Stop-All silences a playing sequencer pattern + ringing synth note + Quick
+      Split preview + Sample/Lanes playback simultaneously. This extends the old
+      four-path check to the new fifth playback path.
+- [ ] (EARS) Per-pad uploaded samples sound and time correctly with level/pitch controls.

@@ -5,6 +5,60 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-04 — FEATURE: step sequencer / drum pad
+
+New module `js/sequencer.js` (`WF.Sequencer`) plus a "Sequencer" board.
+- **8-pad default synthesized kit**: Kick, Snare, Clap, Closed Hat, Open Hat, Low Tom,
+  Rim, Crash. Each uses cheap oscillator/noise/filter/envelope voices; no files required.
+- **Per-pad sample override**: each pad can decode an uploaded sample via the sequencer's
+  AudioContext, with per-pad level and pitch/playback-rate nudge. Presets store the sample
+  reference name/settings, not embedded audio data.
+- **Fixed v1 grid**: 16 steps × 8 pad rows, binary on/off cells, Play/Pause/Stop,
+  seeded with a minimal kick/snare/closed-hat pattern so playback makes sound immediately.
+  Deferred intentionally: 8/32-step variants, swing/humanize, and per-step
+  velocity/accent.
+- **Clock**: Sync/Independent toggle. Sync mode reads/writes the same `WF.state.bpm`
+  used by Wobble; Stage 5 tempo auto-fill flows through the existing Wobble BPM input,
+  so the sequencer follows it. Independent mode keeps its own BPM.
+- **Scheduling**: look-ahead scheduler (`setInterval` poll every 25ms, schedule events
+  inside a 100ms Web Audio window using `AudioContext.currentTime`) rather than
+  setTimeout-per-step.
+- **Routing**: sequencer has its own AudioContext, drum master gain, and drum limiter.
+  It never enters the wobble-modulated synth filter or a shared synth compressor path.
+- **Stop-All from day one**: `stopall.js` calls `WF.Sequencer.emergencyStop()`, which
+  cancels the scheduler interval, ramps drum master gain down over ~10ms, calls `.stop(0)`
+  on active/scheduled pad sources, clears voice registry, and resets playhead/transport UI.
+- **Presets**: preset JSON now includes sequencer sync/BPM, full 8×16 pattern grid, and
+  per-pad level/pitch/sample reference.
+- **Verified headlessly/static**: scheduler math exposed via `testSchedule`; Stop-All
+  wiring includes Sequencer explicitly; full browser smoke test pending below in this run.
+  Kit quality, live sync feel, and bus interaction need real listening → AUDIT_QUEUE.
+
+---
+
+## 2026-07-04 — BUGFIX: global stop leak + Emergency Stop
+
+Confirmed root cause before fixing: Quick Split preview was its own playback path
+(`stems.js` created a `BufferSource` connected directly to `ctx.destination`) with no
+visible Stop control and no exported kill method, so Sample Stop and Lanes Stop could
+not silence it. This was separate from the synth voice graph and the lane scheduler.
+
+Fixes:
+- Added always-visible red **Emergency Stop** in the header (`js/stopall.js`) that calls
+  hard-stop hooks for Synth, Sample, Lanes, and Quick Split preview.
+- Each hard-stop hook ramps its output gain to 0 over ~10ms, then calls `.stop(0)` on
+  active sources/voices and resets UI playback state.
+- Added a Quick Split **Stop Preview** button and routed preview audio through a
+  dedicated gain node so it can be ramp-muted before the hard stop.
+- Tightened regular Sample/Lanes Stop cleanup: clear source refs, cancel rAF loops, and
+  stop Quick Split preview when section-level Stop is pressed.
+- Emergency Stop also broadcasts `wf:emergency-stop` so the keyboard UI clears held-note
+  highlights owned by `ui.js` after synth voices are killed.
+- Added a real-browser listening item to `AUDIT_QUEUE.md`; headless checks can verify
+  wiring, not audible silence.
+
+---
+
 ## 2026-07-04 — STAGE 5: tempo / key / beat-grid detection + snap
 
 New module `js/analyze.js` (`WF.Analyze` + `WF.Grid`) and an "Analyze" board.

@@ -259,6 +259,7 @@
   const pressed = new Set();
   function press(midi) { if (pressed.has(midi)) return; pressed.add(midi); E.noteOn(midi); markKey(midi, true); }
   function release(midi) { if (!pressed.has(midi)) return; pressed.delete(midi); E.noteOff(midi); markKey(midi, false); }
+  function clearPressedKeys() { for (const m of [...pressed]) { pressed.delete(m); markKey(m, false); } }
   function markKey(midi, down) { const off = midi - (BASE + state.octave * 12); const el = keyEls.get(off); if (el) el.classList.toggle("down", down); }
 
   function bindKeyPointers() {
@@ -281,6 +282,7 @@
   });
   window.addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); if (k in KEYMAP) release(BASE + state.octave * 12 + KEYMAP[k]); });
   window.addEventListener("blur", () => { for (const m of [...pressed]) release(m); E.allNotesOff(); });
+  window.addEventListener("wf:emergency-stop", clearPressedKeys);
 
   // -------------------------------------------------------------- power + readouts
   function setStatus(on) {

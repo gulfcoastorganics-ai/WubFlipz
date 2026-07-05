@@ -23,12 +23,14 @@
   function capture(name) {
     const params = {};
     KEYS.forEach((k) => (params[k] = WF.state[k]));
-    return { app: "wubflipz", version: VERSION, name: name || "untitled", savedAt: new Date().toISOString(), params };
+    const sequencer = WF.Sequencer && WF.Sequencer.capture ? WF.Sequencer.capture() : null;
+    return { app: "wubflipz", version: VERSION, name: name || "untitled", savedAt: new Date().toISOString(), params, sequencer };
   }
 
   function apply(preset) {
     if (!preset || !preset.params) throw new Error("Not a wubflipz preset");
     KEYS.forEach((k) => { if (k in preset.params) WF.state[k] = preset.params[k]; });
+    if (WF.Sequencer && WF.Sequencer.apply) WF.Sequencer.apply(preset.sequencer);
     if (WF.Engine && WF.Engine.started) WF.Engine.syncAll();
     if (WF.UI && WF.UI.refreshAll) WF.UI.refreshAll();
   }

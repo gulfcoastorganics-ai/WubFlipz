@@ -55,9 +55,25 @@
     });
     L.startTime = t0; L.offset = off; L.playing = true; applyGains(); updateBtns(); tick();
   }
-  function stopSources() { L.lanes.forEach((l) => { if (l.source) { try { l.source.stop(); } catch (e) {} l.source = null; } }); }
-  function pause() { if (!L.playing) return; L.offset = position(); stopSources(); L.playing = false; updateBtns(); }
-  function stop() { const lp = WF.Player && WF.Player.loop; stopSources(); L.playing = false; L.offset = lp && lp.on ? lp.a : 0; updateBtns(); drawPlayhead(); }
+  function stopSources(when) { L.lanes.forEach((l) => { if (l.source) { try { l.source.stop(when); } catch (e) {} l.source = null; } }); }
+  function pause() { if (!L.playing) return; L.offset = position(); stopSources(); L.playing = false; cancelAnimationFrame(L.raf); updateBtns(); }
+  function stop() { const lp = WF.Player && WF.Player.loop; stopSources(); if (WF.Stems && WF.Stems.stopPreview) WF.Stems.stopPreview(); L.playing = false; L.offset = lp && lp.on ? lp.a : 0; cancelAnimationFrame(L.raf); updateBtns(); drawPlayhead(); }
+  function emergencyStop() {
+    const c = ctx();
+    if (c && L.master) {
+      const t = c.currentTime;
+      L.master.gain.cancelScheduledValues(t);
+      L.master.gain.setValueAtTime(L.master.gain.value, t);
+      L.master.gain.linearRampToValueAtTime(0, t + 0.01);
+    }
+    L.playing = false; L.offset = 0; cancelAnimationFrame(L.raf);
+    const sources = L.lanes.map((l) => { const s = l.source; l.source = null; return s; });
+    setTimeout(() => {
+      sources.forEach((s) => { try { s && s.stop(0); } catch (e) {} });
+      if (c && L.master) L.master.gain.setValueAtTime(1, c.currentTime);
+      updateBtns(); drawPlayhead();
+    }, 12);
+  }
   function toggle() { L.playing ? pause() : play(); }
   function seek(t) { t = Math.max(0, Math.min(maxDur(), t)); if (L.playing) { pause(); L.offset = t; play(); } else { L.offset = t; drawPlayhead(); } }
 
@@ -159,6 +175,6 @@
     if (WF.Tracks) { WF.Tracks.onChange.push(rebuild); rebuild(WF.Tracks.list); }
   }
 
-  Object.assign(L, { play, pause, stop, toggle, seek, position, rebuild, redraw: () => L.lanes.forEach(drawLaneWave) });
+  Object.assign(L, { play, pause, stop, emergencyStop, toggle, seek, position, rebuild, redraw: () => L.lanes.forEach(drawLaneWave) });
   if ($("lanesContainer")) initUI();
 })();
