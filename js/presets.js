@@ -164,6 +164,61 @@
     });
   }
 
+  function bytesToBinary(bytes) {
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return out;
+  }
+
+  function encodePatch(preset) {
+    const json = JSON.stringify(preset);
+    const bin = bytesToBinary(new TextEncoder().encode(json));
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function decodePatch(encoded) {
+    const safe = String(encoded || "").replace(/-/g, "+").replace(/_/g, "/");
+    const padded = safe + "=".repeat((4 - (safe.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  function patchUrl(name) {
+    const p = capture(name || "shared-patch");
+    const url = new URL(window.location.href);
+    url.hash = "patch=" + encodePatch(p);
+    return url.toString();
+  }
+
+  function copyShareLink(name) {
+    const url = patchUrl(name);
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(url).then(() => url);
+    const ta = document.createElement("textarea");
+    ta.value = url; ta.setAttribute("readonly", "readonly"); ta.style.position = "fixed"; ta.style.left = "-9999px";
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } finally { ta.remove(); }
+    return ok ? Promise.resolve(url) : Promise.reject(new Error("Clipboard unavailable"));
+  }
+
+  function loadFromHash() {
+    const hash = (window.location && window.location.hash ? window.location.hash : "").replace(/^#/, "");
+    if (!hash) return false;
+    const encoded = new URLSearchParams(hash).get("patch");
+    if (!encoded) return false;
+    try {
+      const p = decodePatch(encoded);
+      apply(p);
+      return p;
+    } catch (e) {
+      console.warn("Invalid wubflipz patch hash", e);
+      return false;
+    }
+  }
+
   function loadFactory(name) {
     const preset = FACTORY.find((p) => p.name === name);
     if (!preset) return false;
@@ -171,5 +226,9 @@
     return true;
   }
 
-  WF.Presets = { capture, apply, saveLocal, loadLocal, download, uploadFrom, loadFactory, KEYS, FACTORY };
+  WF.Presets = {
+    capture, apply, saveLocal, loadLocal, download, uploadFrom, loadFactory,
+    encodePatch, decodePatch, patchUrl, copyShareLink, loadFromHash,
+    KEYS, FACTORY,
+  };
 })();

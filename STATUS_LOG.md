@@ -5,6 +5,24 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — FEATURE C: Shareable preset URLs
+
+Extended the existing `WF.Presets` system with shareable patch links.
+- Presets still flow through the same `capture()` / `apply()` path as localStorage,
+  JSON upload/download, factory presets, Wobble Match output, and Fuzzer saves.
+- Share links use `#patch=<encoded>` and include the full preset JSON, including the
+  sequencer pattern/pad state.
+- Page load checks the hash and auto-loads a valid patch; malformed/corrupt patch hashes
+  are caught with a console warning and fall back safely without crashing.
+- Added **Copy Share Link** beside preset download/upload controls.
+- v1 encoding is dependency-free URL-safe base64 of JSON, not compressed LZ-style data.
+  Tradeoff: implementation is small and reliable, but URLs are longer/uglier than a
+  compressed patch format would be.
+- Headless validation covers byte-identical encode/decode recovery and malformed-hash
+  safe failure.
+
+---
+
 ## 2026-07-05 — FEATURE B: Sound Fuzzer / preset breeding
 
 New module `js/fuzzer.js` plus a **Fuzzer** board.

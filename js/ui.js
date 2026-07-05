@@ -189,6 +189,11 @@
     WF.Presets.download($("presetName").value || "untitled");
     flash($("presetMsg"), "Downloaded .json");
   });
+  $("presetShare").addEventListener("click", () => {
+    WF.Presets.copyShareLink($("presetName").value || "shared-patch")
+      .then(() => flash($("presetMsg"), "Share link copied"))
+      .catch(() => flash($("presetMsg"), "Copy failed"));
+  });
   $("presetFile").addEventListener("change", (e) => {
     const f = e.target.files[0]; if (!f) return;
     WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); flash($("presetMsg"), "Loaded " + f.name); })
@@ -356,6 +361,12 @@
   drawEnv(); requestAnimationFrame(drawScope);
   window.addEventListener("resize", drawEnv);
 
-  // try restoring last browser preset silently, then reflect BPM readout
+  const hashPreset = WF.Presets.loadFromHash();
+  if (hashPreset && hashPreset.name) {
+    $("presetName").value = hashPreset.name;
+    flash($("presetMsg"), "Loaded URL patch");
+  }
+
+  // reflect BPM readout after any URL patch load
   updateRateReadout();
 })();
