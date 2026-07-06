@@ -168,7 +168,7 @@
     A.started = true;
     scopeBuf = new Float32Array(N.analyser.fftSize);
     meterBuf = new Float32Array(N.meterAnalyser.fftSize);
-    freqBuf = new Uint8Array(N.analyser.frequencyBinCount);
+    freqBuf = new Float32Array(N.analyser.frequencyBinCount);
     WF.Engine._onStart && WF.Engine._onStart();
   }
 
@@ -336,7 +336,7 @@
     get started() { return A.started; },
     voiceCount: () => voices.size,
     getTimeData: (buf) => { if (N.analyser) N.analyser.getFloatTimeDomainData(buf); return buf; },
-    getFreqData: (buf) => { if (N.analyser) N.analyser.getByteFrequencyData(buf || freqBuf); return buf || freqBuf; },
+    getFreqData: (buf) => { if (N.analyser) N.analyser.getFloatFrequencyData(buf || freqBuf); return buf || freqBuf; },
     get sampleRate() { return A.ctx ? A.ctx.sampleRate : 44100; },
     getOutputPeak() {
       if (!N.meterAnalyser || !meterBuf) return { mono: 0, left: 0, right: 0 };

@@ -1,3 +1,4 @@
 node_modules/
+tauri-dist/
 *.log
 .DS_Store

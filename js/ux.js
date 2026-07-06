@@ -30,8 +30,7 @@
   function lanesReady() { return trackCount() > 0 || !!(WF.Lanes && Array.isArray(WF.Lanes.lanes) && WF.Lanes.lanes.length); }
   function presetReady() { const name = $("presetName"); return !!(name && name.value && name.value.trim()); }
   function sessionSaved() {
-    try { return !!localStorage.getItem("wubflipz.project.active.v1") && !sessionDirty; }
-    catch (e) { return !sessionDirty; }
+    return !!(WF.Project && WF.Project.hasActiveSession && WF.Project.hasActiveSession()) && !sessionDirty;
   }
   function timeNow() { return new Date().toLocaleTimeString(); }
 
@@ -147,6 +146,7 @@
       }
       if (label) label.textContent = state.toUpperCase();
     });
+    updateStepperHeads(states);
     updateGates();
     updateLanes();
     updateEmphasis(cur);
@@ -176,12 +176,13 @@
 
   function scrollToTarget(button) {
     const state = stageState(button.dataset.step);
-    if (state[0] === "blocked") {
-      showToast(`${button.querySelector("b").textContent} Blocked`, state[1], "warn");
-      return;
-    }
-    const target = $(button.dataset.target);
-    if (target) target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    // soft focus, not a hard gate: blocked stages still expand so their own
+    // "Load sample first" guidance is visible; the toast repeats the reason
+    if (state[0] === "blocked") showToast(`${button.querySelector("b").textContent} Blocked`, state[1], "warn");
+    const target = resolveTarget(button.dataset.target);
+    if (!target) return;
+    revealTarget(target);
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }
   function confirmDirty(action) {
     if (!soundDirty && !sessionDirty) return true;
@@ -202,10 +203,15 @@
   }
   function runStatusAction() {
     if (!statusTarget) return;
-    const target = $(statusTarget);
+    const target = resolveTarget(statusTarget);
     if (!target) return;
-    if (target.matches && target.matches("button:not(:disabled)")) target.click();
-    else target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    // a target inside a collapsed stage must be expanded (and brought into
+    // view) before it is clicked or scrolled to
+    const expanded = revealTarget(target);
+    if (target.matches && target.matches("button:not(:disabled)")) {
+      if (expanded) target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      target.click();
+    } else target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }
   function audition(key) {
     window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
@@ -233,14 +239,106 @@
   function showContinueSession() {
     const box = $("continueSession"), meta = $("continueSessionMeta");
     if (!box) return;
-    let has = false, label = "Last saved recently.";
-    try {
-      const projects = JSON.parse(localStorage.getItem("wubflipz.projects.v1") || "[]");
-      has = Array.isArray(projects) && projects.length > 0;
-      if (has && projects[0].savedAt) label = `Last saved ${new Date(projects[0].savedAt).toLocaleString()}`;
-    } catch (e) {}
+    const latest = WF.Project && WF.Project.latestProjectMeta ? WF.Project.latestProjectMeta() : null;
+    const has = !!latest;
     box.hidden = !has;
-    if (meta) meta.textContent = label;
+    if (meta) meta.textContent = has && latest.savedAt ? `Last saved ${new Date(latest.savedAt).toLocaleString()}` : "Last saved recently.";
+  }
+
+  // ---- Sprint 4a: soft-focus stepper ----------------------------------------
+  // The workflow strip is the navigator: exactly one stage expanded at a time,
+  // all other stages collapsed to a clickable header row (stage name + state
+  // badge reusing the strip's READY/COMPLETE/BLOCKED logic). Headers and
+  // wrappers are created here at runtime so the no-JS default DOM renders
+  // fully expanded (progressive enhancement). Collapsed stages stay in the
+  // DOM — grid 0fr + inert + aria-hidden, the existing project-expanded
+  // disclosure pattern — and expand/collapse is instant show/hide, which also
+  // satisfies prefers-reduced-motion. Soft focus, never a hard gate: BLOCKED
+  // stages still expand and show their own "Load sample first" guidance.
+  // The Advanced zone is deliberately outside the stepper (always accessible).
+  const STAGE_DEFS = [
+    { key: "design", label: "Design", strip: ["preset", "keys", "design"], find: () => [document.querySelector(".rack"), document.querySelector(".kbwrap")] },
+    { key: "sample", label: "Sample", strip: ["sample"], find: () => [$("playerBoard")] },
+    { key: "analyze", label: "Analyze", strip: ["analyze"], find: () => [$("analyzeBoard")] },
+    { key: "split", label: "Split", strip: ["split"], find: () => [$("quickSplitBoard")] },
+    { key: "arrange", label: "Arrange", strip: ["arrange"], find: () => [$("seqBoard"), $("lanesBoard")] },
+    { key: "save", label: "Save / Share", strip: ["save"], find: () => [$("projectBoard")] },
+  ];
+  const stepperStages = [];
+  let activeStage = "";
+
+  function buildStepper() {
+    STAGE_DEFS.forEach((def) => {
+      const els = def.find().filter(Boolean);
+      if (!els.length) return;
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "stage-head";
+      head.setAttribute("aria-expanded", "true");
+      head.setAttribute("aria-controls", `stageBody-${def.key}`);
+      const name = document.createElement("b");
+      name.textContent = def.label;
+      const badge = document.createElement("em");
+      badge.className = "stage-state";
+      badge.textContent = "READY";
+      head.append(name, badge);
+      const body = document.createElement("div");
+      body.className = "stage-body";
+      body.id = `stageBody-${def.key}`;
+      const inner = document.createElement("div");
+      inner.className = "stage-inner";
+      body.appendChild(inner);
+      els[0].parentNode.insertBefore(head, els[0]);
+      els[0].parentNode.insertBefore(body, els[0]);
+      els.forEach((el) => inner.appendChild(el));
+      head.addEventListener("click", () => {
+        expandStage(def.key);
+        head.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      });
+      stepperStages.push({ key: def.key, label: def.label, strip: def.strip, head, badge, body, inner });
+    });
+  }
+  function expandStage(key) {
+    let opened = false;
+    stepperStages.forEach((s) => {
+      const on = s.key === key;
+      if (on && s.body.classList.contains("stage-collapsed")) opened = true;
+      s.head.setAttribute("aria-expanded", on ? "true" : "false");
+      s.body.classList.toggle("stage-collapsed", !on);
+      if (on) { s.body.removeAttribute("inert"); s.body.removeAttribute("aria-hidden"); }
+      else { s.body.setAttribute("inert", ""); s.body.setAttribute("aria-hidden", "true"); }
+    });
+    activeStage = key;
+    // canvases inside a collapsed stage laid out at zero size; env/waveform/lanes
+    // already redraw on resize, so a synthetic resize repaints the opened stage
+    if (opened) window.dispatchEvent(new Event("resize"));
+  }
+  function stageContaining(el) {
+    return stepperStages.find((s) => s.inner.contains(el)) || null;
+  }
+  function revealTarget(el) {
+    const stage = stageContaining(el);
+    const wasCollapsed = !!(stage && stage.key !== activeStage);
+    if (wasCollapsed) expandStage(stage.key);
+    return wasCollapsed;
+  }
+  function resolveTarget(id) { return $(id) || moduleByKey(id); }
+  function stageKeyForStep(step) {
+    const stage = stepperStages.find((s) => s.strip.includes(step));
+    return stage ? stage.key : "";
+  }
+  function updateStepperHeads(states) {
+    stepperStages.forEach((s) => {
+      const subs = s.strip.map((k) => (states[k] ? states[k][0] : "ready"));
+      // multi-step stages (Design) are never badge-blocked: the panel itself
+      // holds the keyboard/preset browser the sub-step blockers point at
+      const state = subs.every((x) => x === "complete") ? "complete"
+        : (s.strip.length === 1 && subs[0] === "blocked") ? "blocked"
+        : "ready";
+      s.badge.textContent = state.toUpperCase();
+      s.badge.classList.toggle("done", state === "complete");
+      s.badge.classList.toggle("blocked", state === "blocked");
+    });
   }
 
   function ensureTip() {
@@ -279,7 +377,7 @@
     });
     if ($("newSessionQuick")) $("newSessionQuick").addEventListener("click", () => { if ($("projectNew")) $("projectNew").click(); });
     const openLanes = $("openLanesBtn");
-    if (openLanes) openLanes.addEventListener("click", () => { const lanes = $("lanesBoard"); if (lanes) lanes.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); });
+    if (openLanes) openLanes.addEventListener("click", () => { const lanes = $("lanesBoard"); if (lanes) { revealTarget(lanes); lanes.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); } });
     window.addEventListener("wf:toast", (e) => showToast(e.detail && e.detail.message, e.detail && e.detail.detail, e.detail && e.detail.tone));
     window.addEventListener("wf:status", (e) => setStatus(e.detail && e.detail.title, e.detail && e.detail.detail, e.detail && e.detail.tone));
     window.addEventListener("wf:next-step", (e) => suggest(e.detail && e.detail.title, e.detail && e.detail.detail, e.detail && e.detail.target));
@@ -340,10 +438,17 @@
     document.addEventListener("pointerleave", (e) => { if (e.target.closest && e.target.closest("[data-tip]")) hideTip(); }, true);
     document.addEventListener("focusin", (e) => { const target = e.target.closest && e.target.closest("[data-tip]"); if (target) armTip(target); });
     document.addEventListener("focusout", hideTip);
+    buildStepper();
     renderDirty();
     updateWorkflow();
+    // initial soft focus: expand the stage that holds the current workflow step
+    const initStates = {};
+    document.querySelectorAll("#workflowStrip [data-step]").forEach((b) => (initStates[b.dataset.step] = stageState(b.dataset.step)));
+    const initKey = stageKeyForStep(currentStage(initStates));
+    if (initKey) expandStage(initKey);
     if (presetReady()) { setStatus("Default Sound Loaded", "Press A S D F or click the keyboard to audition."); setAction("Play Keys", "auditionStrip"); }
     showContinueSession();
+    window.addEventListener("wf:projects-ready", showContinueSession);
     if (WF.Viz) WF.Viz.register("ux-emphasis", () => {
       const states = {};
       document.querySelectorAll("#workflowStrip [data-step]").forEach((button) => (states[button.dataset.step] = stageState(button.dataset.step)));

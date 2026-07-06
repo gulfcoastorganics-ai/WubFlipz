@@ -481,8 +481,43 @@
   // -------------------------------------------------------------- canvases
   const envcv = $("envcv"), envx = envcv.getContext("2d");
   const scopecv = $("scope"), scx = scopecv.getContext("2d");
-  const spectrumCv = $("spectrum"), spectrumX = spectrumCv.getContext("2d");
-  const phaseCv = $("phaseScope"), phaseX = phaseCv.getContext("2d");
+  const spectrumCv = $("spectrum");
+  const phaseCv = $("phaseScope");
+  function createMeter(factory, canvas) {
+    try { return factory ? factory(canvas) : null; }
+    catch (e) { console.warn("WebGL meter unavailable; using Canvas fallback", e); return null; }
+  }
+  const spectrumGl = createMeter(WF.Meters && WF.Meters.createSpectrum, spectrumCv);
+  const phaseGl = createMeter(WF.Meters && WF.Meters.createPhase, phaseCv);
+  const spectrumX = spectrumGl ? null : spectrumCv.getContext("2d");
+  const phaseX = phaseGl ? null : phaseCv.getContext("2d");
+  function makeScalarMeter(fillId, centered) {
+    const fill = $(fillId), parent = fill && fill.parentElement;
+    if (!parent || !(WF.Meters && WF.Meters.createScalar)) return null;
+    const canvas = document.createElement("canvas");
+    canvas.setAttribute("aria-hidden", "true");
+    canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;";
+    parent.appendChild(canvas);
+    const renderer = createMeter((cv) => WF.Meters.createScalar(cv, { centered }), canvas);
+    if (renderer) {
+      fill.style.opacity = "0";
+      if (fill.nextElementSibling) fill.nextElementSibling.style.zIndex = "2";
+    } else {
+      canvas.remove();
+    }
+    return renderer;
+  }
+  const scalarGl = {
+    meterL: makeScalarMeter("meterL", false),
+    meterR: makeScalarMeter("meterR", false),
+    rmsBar: makeScalarMeter("rmsBar", false),
+    peakBar: makeScalarMeter("peakBar", false),
+    lufsBar: makeScalarMeter("lufsBar", false),
+    corrBar: makeScalarMeter("corrBar", true),
+    grTopBar: makeScalarMeter("grTopBar", false),
+    grSubBar: makeScalarMeter("grSubBar", false),
+    grOutBar: makeScalarMeter("grOutBar", false)
+  };
   function sizeCanvas(cv) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const r = cv.getBoundingClientRect();
@@ -505,7 +540,7 @@
     [[tx(a), ty(1)], [tx(a + d), ty(s)], [tx(a + d + 0.4), ty(s)]].forEach(([x, y]) => { envx.beginPath(); envx.arc(x, y, 2.4 * dpr, 0, 7); envx.fill(); });
     $("envState").textContent = `${Math.round(a * 1000)}·${Math.round(d * 1000)}·${Math.round(s * 100)}%·${Math.round(r * 1000)}`;
   }
-  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0, holdPeakR = 0, holdUntilR = 0,
+  let clipLatched = false, holdPeak = 0, holdUntil = 0, holdPeakR = 0, holdUntilR = 0,
     meterTimeBuf = null, meterTimeBufL = null, meterTimeBufR = null, freqData = null;
   const smooth = { rms: 0, peak: 0, lufs: -70, corr: 1, top: 0, sub: 0, out: 0 };
   function resetClip() {
@@ -515,28 +550,19 @@
   }
   $("clipLed").addEventListener("click", resetClip);
   $("clipReset").addEventListener("click", resetClip);
-  // Honesty rule (fix-s1): visuals are "active" ONLY when a real analyser frame
-  // exists for the audible source. A path without a meter tap renders as idle —
-  // it is never animated as if it were live.
-  function drawIdleNoise(g, W, H, dpr) {
-    const amp = 1.5 * dpr, points = 96;
-    g.lineWidth = 1.25 * dpr; g.strokeStyle = "rgba(111,228,166,0.30)"; g.shadowBlur = 0;
-    g.beginPath();
-    for (let i = 0; i <= points; i++) {
-      idleWalk = Math.max(-1, Math.min(1, idleWalk + (Math.random() - 0.5) * 0.22));
-      const x = (i / points) * W;
-      const y = H / 2 + idleWalk * amp + (Math.random() - 0.5) * 0.7 * dpr;
-      i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
-    }
-    g.stroke();
+  // Honesty rule: visuals are live only when a real analyser frame exists. Idle or
+  // silence renders as zero/flat, never randomized or synthetic motion.
+  function drawFlatLine(g, W, H, dpr) {
+    g.lineWidth = 1.25 * dpr; g.strokeStyle = "rgba(111,228,166,0.22)"; g.shadowBlur = 0;
+    g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke();
   }
   function db(v) { return v > 0 ? 20 * Math.log10(v) : -90; }
   function pctDb(d, min, max) { return Math.max(0, Math.min(1, (d - min) / (max - min))); }
   function readAnalyser(analyser, sampleRate) {
     if (!meterTimeBuf || meterTimeBuf.length !== analyser.fftSize) meterTimeBuf = new Float32Array(analyser.fftSize);
-    if (!freqData || freqData.length !== analyser.frequencyBinCount) freqData = new Uint8Array(analyser.frequencyBinCount);
+    if (!freqData || freqData.length !== analyser.frequencyBinCount) freqData = new Float32Array(analyser.frequencyBinCount);
     analyser.getFloatTimeDomainData(meterTimeBuf);
-    analyser.getByteFrequencyData(freqData);
+    analyser.getFloatFrequencyData(freqData);
     return { active: true, time: meterTimeBuf, freq: freqData, sampleRate, mono: true };
   }
   function attachStereo(frame, aL, aR) {
@@ -609,7 +635,11 @@
     smooth.out += ((Math.abs(gr.out) || 0) - smooth.out) * 0.25;
     return { peak, rms, lufs, peakL, peakR, corr };
   }
-  function setBar(id, amount) { $(id).style.width = `${(Math.max(0, Math.min(1, amount)) * 100).toFixed(1)}%`; }
+  function setBar(id, amount) {
+    const v = Math.max(0, Math.min(1, amount));
+    $(id).style.width = `${(v * 100).toFixed(1)}%`;
+    if (scalarGl[id]) scalarGl[id].draw(v);
+  }
   function drawMeters(ts, frame, gr) {
     $("hdrFps").textContent = WF.Viz && WF.Viz.fps ? Math.round(WF.Viz.fps) : "--";
     if (E._onVoices) $("hdrVoices").textContent = `${E.voiceCount()}/${E.MAX_VOICES}`;
@@ -622,7 +652,9 @@
     const vL = Math.max(0, Math.min(1, (stereo ? m.peakL : (synthPeak != null ? synthPeak : m.peak)) || 0));
     const vR = Math.max(0, Math.min(1, stereo ? m.peakR || 0 : 0));
     $("meterL").style.width = `${(vL * 100).toFixed(1)}%`;
+    if (scalarGl.meterL) scalarGl.meterL.draw(vL);
     if (stereo) $("meterR").style.width = `${(vR * 100).toFixed(1)}%`;
+    if (scalarGl.meterR) scalarGl.meterR.draw(stereo ? vR : 0);
     if (vL >= holdPeak || ts > holdUntil) { holdPeak = vL; holdUntil = ts + 1000; }
     else if (ts > holdUntil - 1000) holdPeak = Math.max(vL, holdPeak - 0.006);
     $("holdL").style.left = `${(holdPeak * 100).toFixed(1)}%`;
@@ -647,9 +679,12 @@
     if (m.corr === null) {
       // mono end-to-end (or no source): correlation is meaningless — say so
       $("corrBar").style.width = "0%";
+      if (scalarGl.corrBar) scalarGl.corrBar.draw(0.5);
       $("corrReadout").textContent = "mono";
     } else {
-      $("corrBar").style.width = `${((smooth.corr + 1) * 50).toFixed(1)}%`;
+      const c = (smooth.corr + 1) * 0.5;
+      $("corrBar").style.width = `${(c * 100).toFixed(1)}%`;
+      if (scalarGl.corrBar) scalarGl.corrBar.draw(c);
       $("corrReadout").textContent = `${smooth.corr >= 0 ? "+" : ""}${smooth.corr.toFixed(2)}`;
     }
     $("grTopReadout").textContent = smooth.top.toFixed(1);
@@ -664,8 +699,8 @@
     const bars = 48, bw = W / bars;
     for (let i = 0; i < bars; i++) {
       const t = i / bars, idx = freq ? Math.min(freq.length - 1, Math.floor(Math.pow(t, 2.2) * freq.length)) : 0;
-      const v = active && freq ? freq[idx] / 255 : 0.04 + 0.025 * Math.sin((performance.now() * 0.001) + i * 0.7);
-      const h = Math.max(1, v * H * 0.92);
+      const v = active && freq ? Math.max(0, Math.min(1, (freq[idx] + 90) / 90)) : 0;
+      const h = v * H * 0.92;
       spectrumX.fillRect(i * bw + 1, H - h, Math.max(1, bw - 2), h);
     }
   }
@@ -687,8 +722,8 @@
         x = cx + (rv - l) * 0.7071 * r;
         y = cy - (l + rv) * 0.7071 * r;
       } else {
-        // mono bus draws a stable diagonal; with no source, a dim idle wiggle
-        const v = time && active ? time[Math.floor((i / n) * time.length)] : Math.sin(i * 0.18 + performance.now() * 0.001) * 0.03;
+        // mono bus draws the measured diagonal; no source stays flat at zero.
+        const v = time && active ? time[Math.floor((i / n) * time.length)] : 0;
         x = cx + v * r;
         y = cy - v * r;
       }
@@ -710,10 +745,12 @@
       scx.beginPath();
       for (let i = 0; i < span; i++) { const v = buf[start + i] || 0; const x = (i / span) * W; const y = H / 2 - v * (H * 0.42); i === 0 ? scx.moveTo(x, y) : scx.lineTo(x, y); }
       scx.stroke(); scx.shadowBlur = 0;
-    } else if (!active) drawIdleNoise(scx, W, H, dpr);
+    } else if (!active) drawFlatLine(scx, W, H, dpr);
     const gr = E.getReduction ? E.getReduction() : { top: 0, sub: 0, out: 0 };
     $("compGR").textContent = `${gr.top.toFixed(1)} / ${gr.sub.toFixed(1)} / ${gr.out.toFixed(1)} dB`;
-    drawSpectrum(frame.freq, active); drawPhase(frame, active); drawMeters(ts || performance.now(), frame, gr);
+    if (spectrumGl) spectrumGl.draw(frame.freq, active); else drawSpectrum(frame.freq, active);
+    if (phaseGl) phaseGl.draw(frame, active); else drawPhase(frame, active);
+    drawMeters(ts || performance.now(), frame, gr);
   }
   drawEnv();
   if (WF.Viz) WF.Viz.register("synth-scope-meters", (ts) => drawScope(ts, activeFrame()));

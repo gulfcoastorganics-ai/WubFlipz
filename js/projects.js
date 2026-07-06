@@ -30,24 +30,22 @@
   };
   let undoStack = [], redoStack = [], applying = false, saveTimer = 0, historyTimer = 0;
 
-  function read(key, fallback) {
-    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
-    catch (e) { return fallback; }
-  }
-  function write(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  // In-memory mirror of the IndexedDB-backed store: reads stay synchronous
+  // (nearly every call site below predates async storage), writes go through
+  // WF.DB and update the mirror immediately so a slow/failed persist never
+  // desyncs what the UI sees this session.
+  const cache = { projects: [], active: "", autosave: null, workspaces: [], recents: [] };
+
+  async function persist(key, value) {
+    try { await WF.DB.set(key, value); return true; }
     catch (e) {
       // storage failures must never be silent (fix-s1): callers also surface via status()
       console.error("wubflipz: storage write failed for", key, "—", e && e.name ? e.name : e);
       return false;
     }
   }
-  // LS_ACTIVE holds a bare id string written with raw setItem; reading it through
-  // read()/JSON.parse always threw and returned "", which minted a fresh project id
-  // on every capture — the real cause of unbounded project-list growth (fix-s1).
-  function activeId() {
-    try { return localStorage.getItem(LS_ACTIVE) || ""; } catch (e) { return ""; }
-  }
+  function activeId() { return cache.active; }
+  async function setActiveId(id) { cache.active = id; return persist(LS_ACTIVE, id); }
   function nowIso() { return new Date().toISOString(); }
   function id(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`; }
   function status(msg) {
@@ -75,10 +73,13 @@
     }
   }
   function timeLabel(d) { return d ? new Date(d).toLocaleTimeString() : new Date().toLocaleTimeString(); }
-  function projects() { const p = read(LS_PROJECTS, []); return Array.isArray(p) ? p : []; }
-  function saveProjects(list) { return write(LS_PROJECTS, list); }
-  function recents() { const r = read(LS_RECENTS, []); return Array.isArray(r) ? r : []; }
-  function markRecent(projectId) { write(LS_RECENTS, [projectId].concat(recents().filter((x) => x !== projectId)).slice(0, 10)); }
+  function projects() { return cache.projects; }
+  async function saveProjects(list) { cache.projects = list; return persist(LS_PROJECTS, list); }
+  function recents() { return cache.recents; }
+  async function markRecent(projectId) {
+    cache.recents = [projectId].concat(recents().filter((x) => x !== projectId)).slice(0, 10);
+    return persist(LS_RECENTS, cache.recents);
+  }
   function moduleForKey(key) { return document.querySelector(`.module[aria-label="${key}"]`); }
   function panelElement(key) {
     if (key === "osc") return moduleForKey("Oscillators");
@@ -182,15 +183,15 @@
     const p = projects().find((x) => x.id === active);
     return p && Array.isArray(p.snapshots) ? p.snapshots : [];
   }
-  function applyProject(project, opts) {
+  async function applyProject(project, opts) {
     if (!project) return false;
     applying = true;
     try {
-      localStorage.setItem(LS_ACTIVE, project.id);
+      await setActiveId(project.id);
       applyMetadata(project.metadata);
       if (project.preset && WF.Presets && WF.Presets.apply) WF.Presets.apply(project.preset);
       applyLayout(project.layout);
-      markRecent(project.id);
+      await markRecent(project.id);
       renderAll();
       if (!opts || !opts.noHistory) pushHistory("load");
       status(`loaded ${project.metadata && project.metadata.name ? project.metadata.name : "project"}`);
@@ -199,38 +200,38 @@
       return true;
     } finally { applying = false; }
   }
-  function saveProject() {
+  async function saveProject() {
     const p = captureProject();
     const list = projects();
     const i = list.findIndex((x) => x.id === p.id);
     // snapshots are preserved from the stored entry (captured state excludes them)
     p.snapshots = i >= 0 && Array.isArray(list[i].snapshots) ? list[i].snapshots : [];
     if (i >= 0) list[i] = p; else list.unshift(p);
-    if (!saveProjects(list)) {
+    if (!(await saveProjects(list))) {
       status("project save FAILED — storage full?"); autosaveState("Storage Full", "Project save failed", "fail");
       toast("Session Save Failed", "Project saves this session. Storage may be full.", "fail");
       return p;
     }
-    localStorage.setItem(LS_ACTIVE, p.id); markRecent(p.id);
+    await setActiveId(p.id); await markRecent(p.id);
     renderAll(); status("project saved"); autosaveState("Saved", timeLabel(), "ok");
     window.dispatchEvent(new CustomEvent("wf:dirty-clear", { detail: { scope: "session" } }));
     toast("Session Saved", `Project saved this session at ${timeLabel()}.`);
     return p;
   }
-  function newProject() {
-    localStorage.setItem(LS_ACTIVE, id("project"));
+  async function newProject() {
+    await setActiveId(id("project"));
     applyMetadata({ name: "Untitled Project", author: "User", genre: "Dubstep", key: "—", bpm: WF.state ? WF.state.bpm : 140, notes: "" });
     pushHistory("new"); scheduleAutosave(); renderAll(); status("new project"); toast("New Session", "Started a clean project.");
   }
-  function saveSnapshot() {
-    const p = saveProject();
+  async function saveSnapshot() {
+    const p = await saveProject();
     const snap = { id: id("snapshot"), name: `${p.metadata.name} ${new Date().toLocaleTimeString()}`, savedAt: nowIso(), state: captureProject(p.metadata.name) };
     const list = projects();
     const i = list.findIndex((x) => x.id === p.id);
     if (i >= 0) {
       // flat, capped history: independent entries, oldest evicted past 20 (fix-s1)
       list[i].snapshots = [snap].concat(list[i].snapshots || []).slice(0, 20);
-      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); toast("Snapshot Failed", "Could not create restore point.", "fail"); return; }
+      if (!(await saveProjects(list))) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); toast("Snapshot Failed", "Could not create restore point.", "fail"); return; }
     }
     renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved"); toast("Restore Point Created", `Snapshot saved at ${timeLabel()}.`);
   }
@@ -243,18 +244,18 @@
     redoStack = [];
     updateUndoButtons();
   }
-  function undo() {
+  async function undo() {
     if (undoStack.length < 2) return;
     const cur = undoStack.pop();
     redoStack.push(cur);
-    applyProject(undoStack[undoStack.length - 1], { noHistory: true });
+    await applyProject(undoStack[undoStack.length - 1], { noHistory: true });
     updateUndoButtons(); status("undo"); toast(`Undo: ${cur.reason || "Edit"}`);
   }
-  function redo() {
+  async function redo() {
     const next = redoStack.pop();
     if (!next) return;
     undoStack.push(next);
-    applyProject(next, { noHistory: true });
+    await applyProject(next, { noHistory: true });
     updateUndoButtons(); status("redo"); toast(`Redo: ${next.reason || "Edit"}`);
   }
   function updateUndoButtons() {
@@ -272,10 +273,11 @@
     if (applying) return;
     clearTimeout(saveTimer);
     autosaveState("Saving...", "", "saving");
-    saveTimer = setTimeout(() => {
+    saveTimer = setTimeout(async () => {
       const p = captureProject();
       p.autosavedAt = nowIso();
-      if (write(LS_AUTOSAVE, p)) {
+      cache.autosave = p;
+      if (await persist(LS_AUTOSAVE, p)) {
         status(`autosaved ${new Date().toLocaleTimeString()}`); autosaveState("Autosaved", timeLabel(p.autosavedAt), "ok");
         workflowStatus("Autosaved", `Session recovery saved at ${timeLabel(p.autosavedAt)}.`);
       }
@@ -287,10 +289,10 @@
     clearTimeout(historyTimer);
     historyTimer = setTimeout(() => { pushHistory(reason); scheduleAutosave(); }, 300);
   }
-  function recoverAutosave() {
-    const p = read(LS_AUTOSAVE, null);
+  async function recoverAutosave() {
+    const p = cache.autosave;
     if (!p) return status("no autosave found");
-    applyProject(p); status("autosave recovered"); autosaveState("Recovered", "just now", "warn"); toast("Recovery Loaded", "Autosaved session restored.", "warn");
+    await applyProject(p); status("autosave recovered"); autosaveState("Recovered", "just now", "warn"); toast("Recovery Loaded", "Autosaved session restored.", "warn");
   }
   function renderProjects() {
     const list = projects();
@@ -352,18 +354,19 @@
       el.appendChild(row);
     });
   }
-  function workspaces() { const w = read(LS_WORKSPACES, []); return Array.isArray(w) ? w : []; }
+  function workspaces() { return cache.workspaces; }
   function renderWorkspaces() {
     const sel = $("workspacePreset"); sel.innerHTML = "";
     workspaces().forEach((w) => { const o = document.createElement("option"); o.value = w.id; o.textContent = w.name; sel.appendChild(o); });
     if (!sel.children.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "No saved workspaces"; sel.appendChild(o); }
   }
-  function saveWorkspace() {
+  async function saveWorkspace() {
     const name = prompt("Workspace name?", $("layoutSelect").value + " Workspace");
     if (!name) return;
-    const list = workspaces();
+    const list = workspaces().slice(0, 20);
     list.unshift({ id: id("workspace"), name, savedAt: nowIso(), layout: captureLayout() });
-    if (write(LS_WORKSPACES, list.slice(0, 20))) { renderWorkspaces(); status("layout saved"); toast("Layout Saved", `Workspace layout saved at ${timeLabel()}.`); }
+    cache.workspaces = list.slice(0, 20);
+    if (await persist(LS_WORKSPACES, cache.workspaces)) { renderWorkspaces(); status("layout saved"); toast("Layout Saved", `Workspace layout saved at ${timeLabel()}.`); }
     else { status("layout save failed"); toast("Layout Save Failed", "Workspace saves layout only. Storage may be full.", "fail"); }
   }
   function loadWorkspace() {
@@ -381,7 +384,7 @@
   }
   function renderAll() {
     renderProjects(); renderSnapshots(); renderSamples(); renderDockList(); renderWorkspaces(); updateUndoButtons();
-    $("projectRecover").classList.toggle("on", !!read(LS_AUTOSAVE, null));
+    $("projectRecover").classList.toggle("on", !!cache.autosave);
   }
   function bind() {
     $("projectNew").addEventListener("click", newProject);
@@ -422,18 +425,72 @@
       else if (key === "z") { undo(); e.preventDefault(); }
       else if (key === "y") { redo(); e.preventDefault(); }
     });
-    window.addEventListener("beforeunload", () => write(LS_AUTOSAVE, Object.assign(captureProject(), { autosavedAt: nowIso() })));
+    // best-effort only: IndexedDB writes are async and may not finish before the
+    // page unloads. visibilitychange (below) is the reliable persistence point;
+    // this just improves the odds on a hard close.
+    window.addEventListener("beforeunload", () => {
+      const p = Object.assign(captureProject(), { autosavedAt: nowIso() });
+      cache.autosave = p;
+      persist(LS_AUTOSAVE, p);
+    });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) scheduleAutosave(); });
     if (WF.Player && WF.Player.onLoaded) WF.Player.onLoaded.push(() => { renderSamples(); scheduleHistory("sample"); scheduleAutosave(); });
   }
-  function init() {
+
+  // ---- one-time migration from the old localStorage keys into IndexedDB ----
+  // Runs before the cache loads. Old keys are only removed after every value
+  // has been confirmed written to IndexedDB, so a failed migration leaves the
+  // localStorage copy intact to retry next load.
+  async function migrateFromLocalStorage() {
+    if (await WF.DB.get("migrated.v1")) return;
+    const readLS = (key, fallback) => {
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+      catch (e) { return fallback; }
+    };
+    let legacyActive = "";
+    try { legacyActive = localStorage.getItem(LS_ACTIVE) || ""; } catch (e) {}
+    const values = {
+      [LS_PROJECTS]: readLS(LS_PROJECTS, []),
+      [LS_AUTOSAVE]: readLS(LS_AUTOSAVE, null),
+      [LS_WORKSPACES]: readLS(LS_WORKSPACES, []),
+      [LS_RECENTS]: readLS(LS_RECENTS, []),
+      [LS_ACTIVE]: legacyActive,
+    };
+    for (const [key, value] of Object.entries(values)) await WF.DB.set(key, value);
+    await WF.DB.set("migrated.v1", true);
+    try {
+      localStorage.removeItem(LS_PROJECTS); localStorage.removeItem(LS_ACTIVE);
+      localStorage.removeItem(LS_AUTOSAVE); localStorage.removeItem(LS_WORKSPACES);
+      localStorage.removeItem(LS_RECENTS);
+    } catch (e) {}
+  }
+  async function loadCache() {
+    cache.projects = (await WF.DB.get(LS_PROJECTS)) || [];
+    cache.active = (await WF.DB.get(LS_ACTIVE)) || "";
+    cache.autosave = (await WF.DB.get(LS_AUTOSAVE)) || null;
+    cache.workspaces = (await WF.DB.get(LS_WORKSPACES)) || [];
+    cache.recents = (await WF.DB.get(LS_RECENTS)) || [];
+  }
+
+  async function init() {
     if (!$("projectBoard")) return;
+    try { await migrateFromLocalStorage(); await loadCache(); }
+    catch (e) { console.error("wubflipz: IndexedDB unavailable, session persistence disabled —", e); }
     bind(); applyMetadata({ name: "Untitled Project", author: "User", genre: "Dubstep", key: "—", bpm: WF.state ? WF.state.bpm : 140, notes: "" });
     document.body.dataset.layout = document.body.dataset.layout || "Studio";
     renderAll(); pushHistory("init");
-    if (read(LS_AUTOSAVE, null)) { status("autosave available"); autosaveState("Recovery Available", "Autosave found", "warn"); }
+    if (cache.autosave) { status("autosave available"); autosaveState("Recovery Available", "Autosave found", "warn"); }
     else autosaveState("Autosave ready", "—", "ok");
+    // fires once the IndexedDB-backed cache has loaded; ux.js's one-shot
+    // showContinueSession() runs earlier (synchronously at script load) and
+    // needs a nudge once real project data is available.
+    window.dispatchEvent(new CustomEvent("wf:projects-ready"));
   }
 
-  WF.Project = { captureProject, applyProject, saveProject, undo, redo, recoverAutosave, sampleManifest, captureLayout, applyLayout };
+  WF.Project = {
+    captureProject, applyProject, saveProject, undo, redo, recoverAutosave, sampleManifest, captureLayout, applyLayout,
+    hasActiveSession: () => !!activeId(),
+    latestProjectMeta: () => { const list = projects(); return list.length ? list[0] : null; },
+  };
   init();
 })();

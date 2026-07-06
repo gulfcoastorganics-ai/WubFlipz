@@ -1,0 +1,14 @@
+{
+  "name": "wubflipz",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WubFlipz static HTML5/Web Audio app packaged with Tauri.",
+  "scripts": {
+    "tauri:prepare": "node scripts/prepare-tauri-dist.mjs",
+    "dev:tauri": "tauri dev",
+    "build:tauri": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

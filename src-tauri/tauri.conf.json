@@ -1,0 +1,29 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "WubFlipz",
+  "version": "0.1.0",
+  "identifier": "com.wubflipz.app",
+  "build": {
+    "beforeBuildCommand": "npm run tauri:prepare",
+    "beforeDevCommand": "python3 -m http.server 1420",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../tauri-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "WubFlipz",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all"
+  }
+}
