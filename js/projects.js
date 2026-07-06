@@ -19,6 +19,15 @@
     ["wobble", "Wobble"], ["growl", "Growl"], ["env", "Envelope"], ["out", "Drive/Out"], ["presets", "Presets"],
   ];
   const MODULE_LABELS = ["osc", "sub", "filter", "wobble", "growl", "env", "out", "presets"];
+  const FIELD_LABELS = {
+    bpm: "Wobble BPM",
+    wobbleDiv: "Wobble Division",
+    presetName: "Preset Name",
+    presetSearch: "Preset Search",
+    detBpm: "Detected BPM",
+    detKey: "Detected Key",
+    seqBpm: "Sequencer BPM",
+  };
   let undoStack = [], redoStack = [], applying = false, saveTimer = 0, historyTimer = 0;
 
   function read(key, fallback) {
@@ -41,7 +50,26 @@
   }
   function nowIso() { return new Date().toISOString(); }
   function id(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`; }
-  function status(msg) { const el = $("projectStatus"); if (el) el.textContent = msg; }
+  function status(msg) {
+    const el = $("projectStatus");
+    if (el) el.textContent = msg;
+    window.dispatchEvent(new CustomEvent("wf:workflow-update"));
+  }
+  function toast(msg) { window.dispatchEvent(new CustomEvent("wf:toast", { detail: { message: msg } })); }
+  function autosaveState(label, detail, tone) {
+    const el = $("autosaveStatus");
+    if (!el) return;
+    el.classList.remove("ok", "saving", "warn", "fail", "saved-pulse");
+    el.classList.add(tone || "ok");
+    const b = el.querySelector("b"), small = $("autosaveTime");
+    if (b) b.textContent = label;
+    if (small) small.textContent = detail || "";
+    if ((tone || "ok") === "ok") {
+      void el.offsetWidth;
+      el.classList.add("saved-pulse");
+    }
+  }
+  function timeLabel(d) { return d ? new Date(d).toLocaleTimeString() : new Date().toLocaleTimeString(); }
   function projects() { const p = read(LS_PROJECTS, []); return Array.isArray(p) ? p : []; }
   function saveProjects(list) { return write(LS_PROJECTS, list); }
   function recents() { const r = read(LS_RECENTS, []); return Array.isArray(r) ? r : []; }
@@ -161,6 +189,7 @@
       renderAll();
       if (!opts || !opts.noHistory) pushHistory("load");
       status(`loaded ${project.metadata && project.metadata.name ? project.metadata.name : "project"}`);
+      toast(`Loaded: ${project.metadata && project.metadata.name ? project.metadata.name : "Project"}`);
       return true;
     } finally { applying = false; }
   }
@@ -171,9 +200,9 @@
     // snapshots are preserved from the stored entry (captured state excludes them)
     p.snapshots = i >= 0 && Array.isArray(list[i].snapshots) ? list[i].snapshots : [];
     if (i >= 0) list[i] = p; else list.unshift(p);
-    if (!saveProjects(list)) { status("project save FAILED — storage full?"); return p; }
+    if (!saveProjects(list)) { status("project save FAILED — storage full?"); autosaveState("Storage Full", "Project save failed", "fail"); return p; }
     localStorage.setItem(LS_ACTIVE, p.id); markRecent(p.id);
-    renderAll(); status("project saved");
+    renderAll(); status("project saved"); autosaveState("Saved", timeLabel(), "ok"); toast("Project saved");
     return p;
   }
   function newProject() {
@@ -189,7 +218,7 @@
     if (i >= 0) {
       // flat, capped history: independent entries, oldest evicted past 20 (fix-s1)
       list[i].snapshots = [snap].concat(list[i].snapshots || []).slice(0, 20);
-      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); return; }
+      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); return; }
     }
     renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved");
   }
@@ -207,27 +236,35 @@
     const cur = undoStack.pop();
     redoStack.push(cur);
     applyProject(undoStack[undoStack.length - 1], { noHistory: true });
-    updateUndoButtons(); status("undo");
+    updateUndoButtons(); status("undo"); toast(`Undo: ${cur.reason || "Edit"}`);
   }
   function redo() {
     const next = redoStack.pop();
     if (!next) return;
     undoStack.push(next);
     applyProject(next, { noHistory: true });
-    updateUndoButtons(); status("redo");
+    updateUndoButtons(); status("redo"); toast(`Redo: ${next.reason || "Edit"}`);
   }
   function updateUndoButtons() {
-    $("projectUndo").classList.toggle("on", undoStack.length > 1);
-    $("projectRedo").classList.toggle("on", redoStack.length > 0);
+    const canUndo = undoStack.length > 1, canRedo = redoStack.length > 0;
+    ["projectUndo", "globalUndo"].forEach((id) => {
+      const b = $(id); if (!b) return;
+      b.classList.toggle("on", canUndo); b.disabled = !canUndo; b.setAttribute("aria-disabled", canUndo ? "false" : "true");
+    });
+    ["projectRedo", "globalRedo"].forEach((id) => {
+      const b = $(id); if (!b) return;
+      b.classList.toggle("on", canRedo); b.disabled = !canRedo; b.setAttribute("aria-disabled", canRedo ? "false" : "true");
+    });
   }
   function scheduleAutosave() {
     if (applying) return;
     clearTimeout(saveTimer);
+    autosaveState("Saving...", "", "saving");
     saveTimer = setTimeout(() => {
       const p = captureProject();
       p.autosavedAt = nowIso();
-      if (write(LS_AUTOSAVE, p)) status(`autosaved ${new Date().toLocaleTimeString()}`);
-      else status("autosave FAILED — storage full?");
+      if (write(LS_AUTOSAVE, p)) { status(`autosaved ${new Date().toLocaleTimeString()}`); autosaveState("Autosaved", timeLabel(p.autosavedAt), "ok"); }
+      else { status("autosave FAILED — storage full?"); autosaveState("Storage Full", "Autosave failed", "fail"); }
     }, 1200);
   }
   function scheduleHistory(reason) {
@@ -238,7 +275,7 @@
   function recoverAutosave() {
     const p = read(LS_AUTOSAVE, null);
     if (!p) return status("no autosave found");
-    applyProject(p); status("autosave recovered");
+    applyProject(p); status("autosave recovered"); autosaveState("Recovered", "just now", "warn"); toast("Recovery loaded");
   }
   function renderProjects() {
     const list = projects();
@@ -268,8 +305,19 @@
   function renderSamples() {
     const el = $("sampleList");
     const list = sampleManifest();
-    if (!list.length) { el.textContent = "No samples loaded."; return; }
-    el.innerHTML = list.map((s) => `<div><b>${s.role}</b> ${s.name || "unnamed"} <span>${s.duration ? s.duration.toFixed(1) + "s" : "ref only"}</span></div>`).join("");
+    el.textContent = "";
+    if (!list.length) { el.textContent = "No samples loaded. Samples, split stems, and pad references appear here."; return; }
+    list.forEach((s) => {
+      const row = document.createElement("div");
+      const left = document.createElement("span");
+      const role = document.createElement("b");
+      const meta = document.createElement("span");
+      role.textContent = s.role;
+      left.append(role, document.createTextNode(` ${s.name || "unnamed"}`));
+      meta.textContent = s.duration ? `${s.duration.toFixed(1)}s` : "ref only";
+      row.append(left, meta);
+      el.appendChild(row);
+    });
   }
   function renderDockList() {
     const el = $("dockList"); if (!el) return;
@@ -278,8 +326,11 @@
       const panel = panelElement(key);
       if (!panel) return;
       const row = document.createElement("label");
-      row.innerHTML = `<input type="checkbox" ${panel.classList.contains("dock-hidden") ? "" : "checked"}> ${label}`;
-      row.querySelector("input").addEventListener("change", (e) => {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = !panel.classList.contains("dock-hidden");
+      row.append(input, document.createTextNode(` ${label}`));
+      input.addEventListener("change", (e) => {
         panel.classList.toggle("dock-hidden", !e.target.checked);
         scheduleHistory("dock"); scheduleAutosave();
       });
@@ -308,7 +359,7 @@
     document.body.dataset.layout = name;
     const hidden = {};
     if (name === "Browser") { hidden.playerBoard = true; hidden.quickSplitBoard = true; hidden.lanesBoard = true; hidden.seqBoard = true; hidden.fuzzerBoard = false; }
-    if (name === "Performance") { hidden.projectBoard = true; hidden.analyzeBoard = true; hidden.quickSplitBoard = true; hidden.fuzzerBoard = true; hidden.lanesBoard = true; hidden.presets = true; }
+    if (name === "Performance") { hidden.analyzeBoard = true; hidden.quickSplitBoard = true; hidden.fuzzerBoard = true; hidden.lanesBoard = true; hidden.presets = true; }
     applyLayout({ layout: name, hidden });
     scheduleHistory("layout"); scheduleAutosave();
   }
@@ -324,16 +375,37 @@
     $("projectSnapshot").addEventListener("click", saveSnapshot);
     $("projectUndo").addEventListener("click", undo);
     $("projectRedo").addEventListener("click", redo);
+    if ($("globalUndo")) $("globalUndo").addEventListener("click", undo);
+    if ($("globalRedo")) $("globalRedo").addEventListener("click", redo);
+    if ($("projectExpand")) $("projectExpand").addEventListener("click", () => {
+      const board = $("projectBoard");
+      const panel = $("projectExpanded");
+      const expanded = !board.classList.contains("expanded");
+      board.classList.toggle("expanded", expanded);
+      $("projectExpand").setAttribute("aria-expanded", expanded ? "true" : "false");
+      $("projectExpand").textContent = expanded ? "Collapse" : "Expand";
+      if (panel) {
+        panel.toggleAttribute("inert", !expanded);
+        panel.setAttribute("aria-hidden", expanded ? "false" : "true");
+      }
+    });
     $("projectRecover").addEventListener("click", recoverAutosave);
     $("workspaceSave").addEventListener("click", saveWorkspace);
     $("workspaceLoad").addEventListener("click", loadWorkspace);
     $("layoutSelect").addEventListener("change", (e) => applyNamedLayout(e.target.value));
     ["projectName","projectAuthor","projectGenre","projectKey","projectBpm","projectNotes"].forEach((id) => $(id).addEventListener("input", () => scheduleHistory("metadata")));
-    document.addEventListener("input", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory("edit"); }, true);
-    document.addEventListener("change", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory("change"); }, true);
+    document.addEventListener("input", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory(FIELD_LABELS[e.target.id] || "Edit"); }, true);
+    document.addEventListener("change", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory(FIELD_LABELS[e.target.id] || "Change"); }, true);
     // knobs, toggles, wave selectors, octave buttons, and sequencer grid cells emit
     // no native input/change; they announce edits via this custom event (fix-s1)
-    window.addEventListener("wf:edit", () => scheduleHistory("edit"));
+    window.addEventListener("wf:edit", (e) => scheduleHistory((e.detail && e.detail.label) || "Edit"));
+    window.addEventListener("keydown", (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && e.shiftKey) { redo(); e.preventDefault(); }
+      else if (key === "z") { undo(); e.preventDefault(); }
+      else if (key === "y") { redo(); e.preventDefault(); }
+    });
     window.addEventListener("beforeunload", () => write(LS_AUTOSAVE, Object.assign(captureProject(), { autosavedAt: nowIso() })));
     if (WF.Player && WF.Player.onLoaded) WF.Player.onLoaded.push(() => { renderSamples(); scheduleHistory("sample"); scheduleAutosave(); });
   }
@@ -342,7 +414,8 @@
     bind(); applyMetadata({ name: "Untitled Project", author: "User", genre: "Dubstep", key: "—", bpm: WF.state ? WF.state.bpm : 140, notes: "" });
     document.body.dataset.layout = document.body.dataset.layout || "Studio";
     renderAll(); pushHistory("init");
-    if (read(LS_AUTOSAVE, null)) status("autosave available");
+    if (read(LS_AUTOSAVE, null)) { status("autosave available"); autosaveState("Recovery Available", "Autosave found", "warn"); }
+    else autosaveState("Autosave ready", "—", "ok");
   }
 
   WF.Project = { captureProject, applyProject, saveProject, undo, redo, recoverAutosave, sampleManifest, captureLayout, applyLayout };

@@ -22,6 +22,8 @@
         <span class="model">WF-1 · Wobble Bass</span>
       </div>
       <div class="power">
+        <button class="head-action" id="globalUndo" type="button" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo last change">Undo</button>
+        <button class="head-action" id="globalRedo" type="button" title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo last change">Redo</button>
         <div class="head-stats" aria-label="Live visual status">
           <span>VOICES: <b id="hdrVoices">0/16</b></span>
           <span>FPS: <b id="hdrFps">--</b></span>
@@ -38,34 +40,58 @@
         <button class="pwr" id="pwr" aria-pressed="false">Off</button>
       </div>
     </header>
+    <div class="ux-toast" id="uxToast" role="status" aria-live="polite"></div>
+
+    <nav class="workflow-strip" id="workflowStrip" aria-label="Start here workflow">
+      <button type="button" data-step="preset" data-target="presetBrowser" aria-label="Step 1 Load Preset"><span>1</span><b>Load Preset</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="keys" data-target="keys" aria-label="Step 2 Play Keys"><span>2</span><b>Play Keys</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="sample" data-target="playerBoard" aria-label="Step 3 Load Sample"><span>3</span><b>Load Sample</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="analyze" data-target="analyzeBoard" aria-label="Step 4 Analyze"><span>4</span><b>Analyze</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="split" data-target="quickSplitBoard" aria-label="Step 5 Split"><span>5</span><b>Split</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="arrange" data-target="lanesBoard" aria-label="Step 6 Arrange"><span>6</span><b>Arrange</b></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="export" data-target="projectBoard" aria-label="Step 7 Export"><span>7</span><b>Export</b></button>
+    </nav>
 
     <!-- PROJECT MANAGEMENT -->
-    <section class="board project-board" id="projectBoard" aria-label="Project management">
+    <section class="board project-board" id="projectBoard" aria-label="Project management" data-tip="Project stores the entire session: preset, layout, metadata, snapshots, and sample references.">
       <div class="board-head"><h2>Project</h2><span class="board-sub">Autosave · Undo · Layouts · Samples</span></div>
+      <div class="project-compact">
+        <label class="fld project-name"><span>Project Name</span><input type="text" id="projectName" placeholder="Untitled Project" /></label>
+        <div class="autosave-pill ok" id="autosaveStatus" aria-live="polite">
+          <span class="autosave-dot" aria-hidden="true"></span>
+          <b>Autosave ready</b>
+          <small id="autosaveTime">—</small>
+        </div>
+        <button class="tbtn primary-action" id="projectSave" type="button">Save</button>
+        <button class="toggle" id="projectUndo" type="button" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+        <button class="toggle" id="projectRedo" type="button" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
+        <button class="toggle project-expand" id="projectExpand" type="button" aria-expanded="false" aria-controls="projectExpanded">Expand</button>
+      </div>
+      <div class="project-expanded" id="projectExpanded" aria-hidden="true" inert>
       <div class="project-grid">
         <div class="project-pane">
           <div class="fieldrow">
-            <label class="fld"><span>Name</span><input type="text" id="projectName" placeholder="Untitled Project" /></label>
             <label class="fld"><span>Author</span><input type="text" id="projectAuthor" placeholder="User" /></label>
+            <label class="fld"><span>Genre</span><input type="text" id="projectGenre" placeholder="Dubstep" /></label>
           </div>
           <div class="fieldrow">
-            <label class="fld"><span>Genre</span><input type="text" id="projectGenre" placeholder="Dubstep" /></label>
             <label class="fld"><span>Key</span><input type="text" id="projectKey" placeholder="—" /></label>
             <label class="fld"><span>BPM</span><input type="number" id="projectBpm" min="40" max="300" step="1" /></label>
           </div>
           <label class="fld full"><span>Notes</span><input type="text" id="projectNotes" placeholder="Session notes, references, mix decisions…" /></label>
           <div class="btnrow">
             <button class="tbtn" id="projectNew">New</button>
-            <button class="tbtn" id="projectSave">Save Project</button>
             <button class="tbtn" id="projectLoad">Load Selected</button>
-            <button class="tbtn" id="projectSnapshot">Snapshot</button>
-          </div>
-          <div class="btnrow">
-            <button class="toggle" id="projectUndo">Undo</button>
-            <button class="toggle" id="projectRedo">Redo</button>
             <button class="toggle" id="projectRecover">Recover Autosave</button>
+            <button class="tbtn" id="projectSnapshot" data-tip="Snapshot is a version of the current project you can restore later.">Snapshot</button>
           </div>
-          <div class="screen-cap"><span>Status</span><b id="projectStatus">autosave ready</b></div>
+          <div class="screen-cap"><span>Status</span><b id="projectStatus" aria-live="polite">autosave ready</b></div>
         </div>
         <div class="project-pane">
           <div class="project-toolbar">
@@ -74,7 +100,7 @@
           </div>
           <div class="project-toolbar">
             <label class="fld"><span>Layout</span><select id="layoutSelect"><option>Studio</option><option>Browser</option><option>Performance</option></select></label>
-            <label class="fld"><span>Workspace</span><select id="workspacePreset"></select></label>
+            <label class="fld" data-tip="Workspace stores layout only."><span>Workspace</span><select id="workspacePreset"></select></label>
           </div>
           <div class="btnrow">
             <button class="toggle" id="workspaceSave">Save Workspace</button>
@@ -84,6 +110,7 @@
           <div class="snapshot-list" id="snapshotList" aria-label="Session snapshots"></div>
           <div class="sample-list" id="sampleList">No samples loaded.</div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -145,7 +172,7 @@
       </section>
 
       <!-- GROWL -->
-      <section class="module" aria-label="Growl">
+      <section class="module" aria-label="Growl" data-tip="Growl adds additional harmonic modulation on top of the main wobble.">
         <h2>Growl</h2><div class="sub">Fast LFO → Cutoff · Reso · Pitch</div>
         <div class="knob-row">
           <div class="knob" tabindex="0" role="slider" data-param="growlAmount" data-label="Amount" data-min="0" data-max="1" data-curve="lin" data-default="0" aria-label="Growl amount"></div>
@@ -196,7 +223,7 @@
       </section>
 
       <!-- PRESETS -->
-      <section class="module" aria-label="Presets">
+      <section class="module" aria-label="Presets" data-tip="Preset stores the synth sound only, plus compatible sequencer state when present.">
         <h2>Presets</h2><div class="sub">localStorage · JSON File</div>
         <label class="fld full"><span>Name</span><input type="text" id="presetName" placeholder="my-wobble" /></label>
         <div class="btnrow">
@@ -236,7 +263,7 @@
     <section class="board" id="playerBoard" aria-label="Sample player">
       <div class="board-head"><h2>Sample</h2><span class="board-sub">Load Audio · Transport · Loop · Zoom</span></div>
       <div class="dropzone" id="dropzone">
-        <span>Drop an audio file (mp3 · wav · ogg) or <label class="linklike">browse<input type="file" id="fileInput" accept="audio/*" hidden /></label></span>
+        <span><b>Drop audio here</b><br>or <label class="linklike">Browse Sample<input type="file" id="fileInput" accept="audio/*" hidden /></label><br><small>Supports WAV · MP3 · FLAC</small></span>
       </div>
       <div class="fileinfo"><b id="fileName">— no file —</b><span id="fileDur"></span></div>
       <div class="progress" id="decodeProg"><div class="bar" id="decodeBar"></div></div>
@@ -268,6 +295,7 @@
     <!-- ANALYZE (Stage 5) -->
     <section class="board" id="analyzeBoard" aria-label="Tempo and key detection">
       <div class="board-head"><h2>Analyze</h2><span class="board-sub">Tempo · Key · Beat Grid — estimates</span></div>
+      <p class="board-note empty-guidance"><b>Load a sample to detect</b><br>Tempo · Key · Beat Grid</p>
       <p class="board-note">Estimates only — edit if wrong. Detected BPM feeds the Wobble module; grid lines + snap apply to the Sample and Lanes.</p>
       <div class="btnrow">
         <button class="tbtn" id="detectBtn">Detect Tempo &amp; Key</button>
@@ -285,11 +313,12 @@
     <!-- QUICK SPLIT (Stage 3) -->
     <section class="board" id="quickSplitBoard" aria-label="Quick Split stem separation">
       <div class="board-head"><h2>Quick Split</h2><span class="board-sub">DSP · not ML · approximate</span></div>
+      <p class="board-note empty-guidance"><b>Split loaded audio into</b><br>HPSS · Mid/Side<br>Stems appear automatically in Lanes.</p>
       <p class="board-note">Rough, client-side separation for sketching — <b>not</b> professional stem quality. HPSS splits tonal vs. drum content; Mid/Side roughly removes or isolates centre-panned vocals.</p>
       <div class="btnrow">
-        <button class="tbtn" id="splitHP">Harmonic / Percussive (HPSS)</button>
+        <button class="tbtn" id="splitHP" data-tip="HPSS separates harmonic and percussive material.">Harmonic / Percussive (HPSS)</button>
         <button class="tbtn" id="splitMS">Vocal Remove / Isolate (Mid-Side)</button>
-        <button class="tbtn" id="matchWobbleBtn">Match Wobble from Track</button>
+        <button class="tbtn" id="matchWobbleBtn" data-tip="Wobble Match estimates modulation timing from the loaded audio.">Match Wobble from Track</button>
         <button class="tbtn" id="splitPreviewStop">Stop Preview</button>
       </div>
       <div class="progress" id="splitProg"><div class="bar" id="splitBar"></div></div>
@@ -324,6 +353,7 @@
       <div class="lanes-container" id="lanesContainer">
         <div class="lanes-playhead" id="lanesPlayhead"></div>
       </div>
+      <p class="board-note empty-guidance" id="lanesEmpty">Tracks created from Samples, Quick Split, and Recording appear here.</p>
       <p class="board-note">Click a lane to seek · per-lane Vol / Pan / Mute (M) / Solo (S) · the Sample loop region applies here too.</p>
     </section>
 
@@ -353,6 +383,7 @@
   <script src="js/fuzzer.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/projects.js"></script>
+  <script src="js/ux.js"></script>
   <script src="js/stopall.js"></script>
 </body>
 </html>

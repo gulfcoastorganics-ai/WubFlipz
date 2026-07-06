@@ -9,6 +9,29 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## UX Sprint 1 — workflow polish
+
+- [ ] (EYES) First launch: a new user understands the intended path from the workflow
+      strip within 10 seconds and the strip does not feel like a second navigation bar.
+- [ ] (EYES) Compact Project panel: collapsed height feels materially smaller, core
+      actions are obvious, and expanding/collapsing does not hide anything users need.
+- [ ] (EYES) Workflow strip state: steps complete/highlight in the expected order after
+      loading a preset, playing keys, loading a sample, analyzing, splitting, arranging,
+      and saving/exporting.
+- [ ] (EYES) Empty states: Sample, Analyze, Quick Split, Lanes, and User Presets teach
+      the next action without adding visual clutter.
+- [ ] (EYES) Autosave visibility: Saving, Autosaved + timestamp, Recovery Available,
+      Recovered, and storage-failure states are understandable and noticeable enough.
+- [ ] (EYES) Tooltips: delay, placement, wording, and density help terminology without
+      obstructing normal knob/button use.
+- [ ] (EYES/A11Y) Keyboard navigation: header Undo/Redo, workflow strip, compact Project
+      controls, preset browser, and expanded Project controls follow a sensible focus
+      order with visible focus rings.
+- [ ] (EYES) Reduced motion: project expansion, toasts, favorite/autosave pulses, and
+      workflow hover states are static or appropriately reduced.
+- [ ] (EYES) Visual hierarchy: primary actions read as primary, meters feel quieter, and
+      Project management no longer dominates first launch.
+
 ## FIX S1 — 2026-07-05 audit findings resolution (headless runtime verification)
 
 Fixed and verified under the Node DOM+WebAudio harness (each bug reproduced failing

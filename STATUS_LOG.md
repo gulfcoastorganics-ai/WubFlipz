@@ -5,6 +5,49 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — UX SPRINT 1: first-60-seconds workflow polish
+
+Workflow polish only; no DSP, synthesis, or audio routing changed.
+- Added a compact "Start Here" workflow strip below the header: Load Preset → Play Keys
+  → Load Sample → Analyze → Split → Arrange → Export. It highlights the current first
+  incomplete step, marks completed steps, and scrolls to the related module on click.
+- Converted the Project board to a compact default state with Project Name, autosave
+  status, Save, Undo, Redo, and Expand. Expanded state still exposes snapshots,
+  workspace/layout, recovery, metadata, recents, panel docking, and sample management.
+- Mirrored Undo/Redo into the header using the existing `WF.Project` history functions.
+  Buttons share disabled state with the Project controls and show toast feedback such as
+  `Undo: Wobble BPM`.
+- Improved empty states for Sample, Analyze, Quick Split, Lanes, and User Presets so a
+  first-time user sees what action to take next instead of passive empty panels.
+- Made autosave status explicit: Autosave ready, Saving..., Autosaved + timestamp,
+  Recovery Available, Recovered, Storage Full/failure states.
+- Added lightweight delayed tooltips for confusing terms: Project, Workspace, Snapshot,
+  Preset, Growl, HPSS, and Wobble Match.
+- Adjusted visual hierarchy without redesigning modules: project panel lower emphasis,
+  primary actions brighter, meters quieter until hover, consistent focus rings, and
+  compact responsive workflow controls.
+- Added microinteractions for preset load, favorite pulse, autosave check pulse, undo
+  toast, panel expansion, and hover elevation, all guarded by `prefers-reduced-motion`.
+- Accessibility quick wins: header undo/redo labels/tooltips, visible focus rings,
+  aria-live project/autosave/toast updates, workflow `aria-current`, and collapsed
+  Project details removed from the tab order via `inert`.
+- Safety/polish cleanup while touching workflows: preset detail/list and project sample/
+  dock lists no longer inject user-controlled metadata via `innerHTML`.
+
+Verified headlessly/static:
+- All `js/*.js` pass `node --check`.
+- DOM id cross-check passes: all `ui.js`/`projects.js`/`ux.js` `$()` references resolve;
+  no duplicate ids.
+- `git diff --check` passes.
+- rAF/timer scan unchanged for visuals: `js/vizloop.js` remains the only rAF owner; the
+  only interval match is the existing sequencer look-ahead scheduler.
+- Chromium smoke was attempted, but this container still exits 133 in crashpad CPU
+  frequency probing before page load. Sandbox networking also cannot `curl` localhost
+  even though `ss` shows a listener on `:4173`, so browser runtime UX checks remain
+  queued for a real browser.
+
+---
+
 ## 2026-07-05 — FIX S1: stability & honesty fixes (from AUDIT_REPORT_2026-07-05)
 
 Six audit findings fixed, each reproduced at runtime BEFORE the fix and re-verified

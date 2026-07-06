@@ -11,7 +11,7 @@
   // knobs/toggles/wave selectors/octave buttons emit no native input/change event,
   // so project history+autosave never saw them (AUDIT_REPORT_2026-07-05 finding #7;
   // fix-s1). projects.js listens for this; its 300ms debounce absorbs drag streams.
-  const emitEdit = () => window.dispatchEvent(new CustomEvent("wf:edit"));
+  const emitEdit = (label) => window.dispatchEvent(new CustomEvent("wf:edit", { detail: { label: label || "Edit" } }));
 
   // -------------------------------------------------------------- formatting
   function fmt(param, v) {
@@ -71,7 +71,7 @@
       this.t = Math.min(1, Math.max(0, t));
       state[this.param] = this.value();
       this.render();
-      if (live) { E.onParam(this.param); onKnobSide(this.param); emitEdit(); }
+      if (live) { E.onParam(this.param); onKnobSide(this.param); emitEdit(this.el.dataset.label || this.param); }
     }
     syncFromState(live) { this.t = this.valToT(state[this.param]); this.render(); if (live) E.onParam(this.param); }
     bind() {
@@ -122,7 +122,7 @@
       b.addEventListener("click", () => {
         state[key] = w; E.onParam(key);
         [...box.children].forEach((c) => c.classList.remove("active")); b.classList.add("active");
-        emitEdit();
+        emitEdit(key);
       });
       box.appendChild(b);
     });
@@ -139,8 +139,8 @@
     const valEl = $(valId);
     const setDisp = () => { valEl.textContent = (state[key] > 0 ? "+" : "") + state[key]; };
     const upd = () => { setDisp(); if (extra) extra(); };
-    $(dnId).addEventListener("click", () => { state[key] = Math.max(min, state[key] - 1); E.onParam(key); upd(); emitEdit(); });
-    $(upId).addEventListener("click", () => { state[key] = Math.min(max, state[key] + 1); E.onParam(key); upd(); emitEdit(); });
+    $(dnId).addEventListener("click", () => { state[key] = Math.max(min, state[key] - 1); E.onParam(key); upd(); emitEdit(key === "octave" ? "Keyboard Octave" : "Sub Octave"); });
+    $(upId).addEventListener("click", () => { state[key] = Math.min(max, state[key] + 1); E.onParam(key); upd(); emitEdit(key === "octave" ? "Keyboard Octave" : "Sub Octave"); });
     // init: display only. `extra` (e.g. relabelKeys) must not run before the keyboard
     // is built later in this IIFE — buildKeyboard() labels the keys itself.
     octCtls.push({ key, upd }); setDisp();
@@ -153,7 +153,7 @@
   function bindToggle(id, key, onTxt, offTxt, cb) {
     const el = $(id);
     const upd = () => { el.classList.toggle("on", !!state[key]); el.textContent = state[key] ? onTxt : offTxt; el.setAttribute("aria-pressed", state[key] ? "true" : "false"); };
-    el.addEventListener("click", () => { state[key] = !state[key]; E.onParam(key); upd(); if (cb) cb(); emitEdit(); });
+    el.addEventListener("click", () => { state[key] = !state[key]; E.onParam(key); upd(); if (cb) cb(); emitEdit(onTxt.replace(" On", "")); });
     toggles.push({ key, upd }); upd();
   }
   bindToggle("wobbleOn", "wobbleOn", "Wobble On", "Wobble Off");
@@ -166,6 +166,7 @@
   bpmInput.addEventListener("input", () => {
     let v = parseFloat(bpmInput.value); if (!isFinite(v)) return;
     v = Math.min(300, Math.max(40, v)); state.bpm = v; E.onParam("bpm"); updateRateReadout();
+    emitEdit("Wobble BPM");
   });
   const divSel = $("wobbleDiv");
   Object.keys(WF.WOBBLE_DIVS).forEach((k) => {
@@ -174,7 +175,7 @@
     divSel.appendChild(o);
   });
   divSel.value = state.wobbleDiv;
-  divSel.addEventListener("change", () => { state.wobbleDiv = divSel.value; E.onParam("wobbleDiv"); updateRateReadout(); });
+  divSel.addEventListener("change", () => { state.wobbleDiv = divSel.value; E.onParam("wobbleDiv"); updateRateReadout(); emitEdit("Wobble Division"); });
 
   function updateRateReadout() {
     const hz = E.wobbleHz();
@@ -217,7 +218,16 @@
     $("presetFavs").addEventListener("click", () => setPresetMode("favorites"));
     $("presetRecent").addEventListener("click", () => setPresetMode("recent"));
     $("presetLoadSelected").addEventListener("click", loadSelectedPreset);
-    $("presetFavorite").addEventListener("click", () => { if (presetBrowser.selectedId) { WF.Presets.toggleFavorite(presetBrowser.selectedId); renderPresetBrowser(); } });
+    $("presetFavorite").addEventListener("click", () => {
+      if (presetBrowser.selectedId) {
+        WF.Presets.toggleFavorite(presetBrowser.selectedId);
+        $("presetFavorite").classList.remove("heart-pulse");
+        void $("presetFavorite").offsetWidth;
+        $("presetFavorite").classList.add("heart-pulse");
+        renderPresetBrowser();
+        window.dispatchEvent(new CustomEvent("wf:workflow-update"));
+      }
+    });
     $("presetList").addEventListener("keydown", onPresetKeys);
     renderPresetBrowser();
   }
@@ -251,9 +261,19 @@
     const p = presetBrowser.rows.find((x) => x.id === id);
     if (!p) { $("presetDetail").textContent = "Select a preset."; return; }
     $("presetName").value = p.name;
-    $("presetDetail").innerHTML = `<b>${p.name}</b> <span>${p.source.toUpperCase()}</span><br>${p.metadata.description}<br>
-      <small>${p.metadata.category} · ${p.metadata.genre} · ${p.metadata.character} · ${p.metadata.bpm || "—"} BPM · ${p.metadata.key || "—"} · by ${p.metadata.author}</small><br>
-      <small>${p.metadata.tags.map((t) => "#" + t).join(" ")}</small>`;
+    const detail = $("presetDetail");
+    detail.textContent = "";
+    const name = document.createElement("b");
+    const source = document.createElement("span");
+    const desc = document.createElement("div");
+    const meta = document.createElement("small");
+    const tags = document.createElement("small");
+    name.textContent = p.name;
+    source.textContent = p.source.toUpperCase();
+    desc.textContent = p.metadata.description || "";
+    meta.textContent = `${p.metadata.category} · ${p.metadata.genre} · ${p.metadata.character} · ${p.metadata.bpm || "—"} BPM · ${p.metadata.key || "—"} · by ${p.metadata.author}`;
+    tags.textContent = (p.metadata.tags || []).map((t) => "#" + t).join(" ");
+    detail.append(name, document.createTextNode(" "), source, document.createElement("br"), desc, meta, document.createElement("br"), tags);
     $("presetFavorite").classList.toggle("on", !!p.favorite);
     $("presetFavorite").textContent = p.favorite ? "Favorited" : "Favorite";
   }
@@ -265,14 +285,31 @@
     presetBrowser.rows.forEach((p) => {
       const row = document.createElement("button");
       row.type = "button"; row.className = "preset-row"; row.dataset.id = p.id; row.setAttribute("role", "option"); row.setAttribute("aria-selected", p.id === presetBrowser.selectedId ? "true" : "false");
-      row.innerHTML = `<span class="preset-star">${p.favorite ? "★" : "☆"}</span><span class="preset-main"><b>${p.name}</b><em>${p.metadata.category} · ${p.metadata.genre}</em></span><span class="preset-meta">${p.metadata.bpm || "—"} BPM<br>${p.source}</span>`;
+      const star = document.createElement("span");
+      const main = document.createElement("span");
+      const title = document.createElement("b");
+      const sub = document.createElement("em");
+      const meta = document.createElement("span");
+      star.className = "preset-star"; star.textContent = p.favorite ? "★" : "☆";
+      main.className = "preset-main"; title.textContent = p.name; sub.textContent = `${p.metadata.category} · ${p.metadata.genre}`; main.append(title, sub);
+      meta.className = "preset-meta"; meta.append(document.createTextNode(`${p.metadata.bpm || "—"} BPM`), document.createElement("br"), document.createTextNode(p.source));
+      row.append(star, main, meta);
       row.addEventListener("click", () => selectPreset(p.id));
       row.addEventListener("dblclick", loadSelectedPreset);
       frag.appendChild(row);
     });
     list.innerHTML = "";
     if (frag.childNodes.length) list.appendChild(frag);
-    else list.innerHTML = `<div class="preset-empty">No presets match.</div>`;
+    else {
+      const empty = document.createElement("div");
+      empty.className = "preset-empty";
+      if ($("presetSource").value === "User") {
+        const b = document.createElement("b");
+        b.textContent = "Save your first sound";
+        empty.append(b, document.createTextNode("to build your library."));
+      } else empty.textContent = "No presets match.";
+      list.appendChild(empty);
+    }
     selectPreset(presetBrowser.selectedId);
   }
   function loadSelectedPreset() {
@@ -280,6 +317,7 @@
     const p = WF.Presets.loadById(presetBrowser.selectedId);
     if (!p) return flash($("presetMsg"), "Load failed");
     $("presetName").value = p.name; pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + p.name);
+    window.dispatchEvent(new CustomEvent("wf:workflow-update"));
   }
   function onPresetKeys(e) {
     if (!presetBrowser.rows.length) return;
