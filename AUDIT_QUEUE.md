@@ -9,6 +9,24 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## Workflow Compression Audit — 2026-07-06
+
+- [ ] (EYES) Validate measured scroll cost for Sound → Play → Design → Sample →
+      Analyze → Split → Arrange → Save in a real browser; static DOM order is correct,
+      but pixel/viewport scroll reduction could not be measured headlessly.
+- [ ] (EYES) Sound-design save compression: after editing Wobble/Growl/Filter/Drive,
+      confirm whether users can find Save Sound without hesitation. Audit finding:
+      Status Center currently says "Sound Modified" but does not expose a one-click
+      Save Sound action.
+- [ ] (EYES) Load Sound placement: confirm first-time users find the preset browser
+      quickly even though it is inside the Design rack rather than a top-level first
+      section.
+- [ ] (EYES/A11Y) Advanced discoverability: from Save / Share, confirm users can find
+      Export JSON, Upload, Snapshot, Layout, and Fuzzer without a workflow-strip entry.
+- [ ] (EYES) Analysis-to-Split handoff: after Analysis Complete, confirm the Status
+      Center scroll to Quick Split plus the required HPSS/Mid-Side choice feels clear,
+      not like a dead end.
+
 ## UX Sprint 3.1 — declutter and reorder
 
 - [ ] (EYES) Page order: vertical scroll now matches the workflow strip without making
