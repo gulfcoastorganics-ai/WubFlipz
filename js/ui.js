@@ -179,11 +179,12 @@
   // -------------------------------------------------------------- presets
   $("presetSave").addEventListener("click", () => {
     const ok = WF.Presets.saveLocal($("presetName").value || "untitled");
+    if (ok && $("presetList")) renderPresetBrowser();
     flash($("presetMsg"), ok ? "Saved to browser" : "Save failed");
   });
   $("presetLoad").addEventListener("click", () => {
     const ok = WF.Presets.loadLocal();
-    if (ok) pulsePresetName();
+    if (ok) { pulsePresetName(); renderPresetBrowser(); }
     flash($("presetMsg"), ok ? "Loaded from browser" : "No saved preset");
   });
   $("presetDownload").addEventListener("click", () => {
@@ -197,20 +198,95 @@
   });
   $("presetFile").addEventListener("change", (e) => {
     const f = e.target.files[0]; if (!f) return;
-    WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); pulsePresetName(); flash($("presetMsg"), "Loaded " + f.name); })
+    WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + f.name); })
       .catch(() => flash($("presetMsg"), "Invalid preset file"));
     e.target.value = "";
   });
-  const factorySel = $("factoryPreset");
-  WF.Presets.FACTORY.forEach((p) => {
-    const o = document.createElement("option"); o.value = p.name; o.textContent = p.name; factorySel.appendChild(o);
-  });
-  $("factoryLoad").addEventListener("click", () => {
-    const ok = WF.Presets.loadFactory(factorySel.value);
-    $("presetName").value = factorySel.value;
-    if (ok) pulsePresetName();
-    flash($("presetMsg"), ok ? "Loaded factory" : "Factory load failed");
-  });
+  const presetBrowser = { mode: "all", selectedId: WF.Presets.browserState().selectedId || "", rows: [] };
+  function initPresetBrowser() {
+    const cat = $("presetCategory"), tag = $("presetTag");
+    ["All"].concat(WF.Presets.CATEGORIES).forEach((c) => { const o = document.createElement("option"); o.value = c; o.textContent = c; cat.appendChild(o); });
+    ["All"].concat(WF.Presets.allTags()).forEach((t) => { const o = document.createElement("option"); o.value = t === "All" ? "" : t; o.textContent = t; tag.appendChild(o); });
+    ["presetSearch","presetCategory","presetSource","presetSort","presetTag"].forEach((id) => $(id).addEventListener("input", renderPresetBrowser));
+    $("presetAll").addEventListener("click", () => setPresetMode("all"));
+    $("presetFavs").addEventListener("click", () => setPresetMode("favorites"));
+    $("presetRecent").addEventListener("click", () => setPresetMode("recent"));
+    $("presetLoadSelected").addEventListener("click", loadSelectedPreset);
+    $("presetFavorite").addEventListener("click", () => { if (presetBrowser.selectedId) { WF.Presets.toggleFavorite(presetBrowser.selectedId); renderPresetBrowser(); } });
+    $("presetList").addEventListener("keydown", onPresetKeys);
+    renderPresetBrowser();
+  }
+  function presetFilters() {
+    return {
+      query: $("presetSearch").value,
+      category: $("presetCategory").value,
+      source: $("presetSource").value,
+      sort: $("presetSort").value,
+      tag: $("presetTag").value,
+      favorites: presetBrowser.mode === "favorites",
+      recent: presetBrowser.mode === "recent",
+    };
+  }
+  function setPresetMode(mode) {
+    presetBrowser.mode = mode;
+    $("presetAll").classList.toggle("on", mode === "all");
+    $("presetFavs").classList.toggle("on", mode === "favorites");
+    $("presetRecent").classList.toggle("on", mode === "recent");
+    renderPresetBrowser();
+  }
+  function selectPreset(id, scroll) {
+    presetBrowser.selectedId = id;
+    WF.Presets.setSelected(id);
+    document.querySelectorAll(".preset-row").forEach((r) => {
+      const on = r.dataset.id === id;
+      r.classList.toggle("selected", on);
+      r.setAttribute("aria-selected", on ? "true" : "false");
+      if (on && scroll) r.scrollIntoView({ block: "nearest" });
+    });
+    const p = presetBrowser.rows.find((x) => x.id === id);
+    if (!p) { $("presetDetail").textContent = "Select a preset."; return; }
+    $("presetName").value = p.name;
+    $("presetDetail").innerHTML = `<b>${p.name}</b> <span>${p.source.toUpperCase()}</span><br>${p.metadata.description}<br>
+      <small>${p.metadata.category} · ${p.metadata.genre} · ${p.metadata.character} · ${p.metadata.bpm || "—"} BPM · ${p.metadata.key || "—"} · by ${p.metadata.author}</small><br>
+      <small>${p.metadata.tags.map((t) => "#" + t).join(" ")}</small>`;
+    $("presetFavorite").classList.toggle("on", !!p.favorite);
+    $("presetFavorite").textContent = p.favorite ? "Favorited" : "Favorite";
+  }
+  function renderPresetBrowser() {
+    const list = $("presetList");
+    presetBrowser.rows = WF.Presets.listPresets(presetFilters());
+    if (!presetBrowser.rows.some((p) => p.id === presetBrowser.selectedId)) presetBrowser.selectedId = presetBrowser.rows[0] ? presetBrowser.rows[0].id : "";
+    const frag = document.createDocumentFragment();
+    presetBrowser.rows.forEach((p) => {
+      const row = document.createElement("button");
+      row.type = "button"; row.className = "preset-row"; row.dataset.id = p.id; row.setAttribute("role", "option"); row.setAttribute("aria-selected", p.id === presetBrowser.selectedId ? "true" : "false");
+      row.innerHTML = `<span class="preset-star">${p.favorite ? "★" : "☆"}</span><span class="preset-main"><b>${p.name}</b><em>${p.metadata.category} · ${p.metadata.genre}</em></span><span class="preset-meta">${p.metadata.bpm || "—"} BPM<br>${p.source}</span>`;
+      row.addEventListener("click", () => selectPreset(p.id));
+      row.addEventListener("dblclick", loadSelectedPreset);
+      frag.appendChild(row);
+    });
+    list.innerHTML = "";
+    if (frag.childNodes.length) list.appendChild(frag);
+    else list.innerHTML = `<div class="preset-empty">No presets match.</div>`;
+    selectPreset(presetBrowser.selectedId);
+  }
+  function loadSelectedPreset() {
+    if (!presetBrowser.selectedId) return flash($("presetMsg"), "No preset selected");
+    const p = WF.Presets.loadById(presetBrowser.selectedId);
+    if (!p) return flash($("presetMsg"), "Load failed");
+    $("presetName").value = p.name; pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + p.name);
+  }
+  function onPresetKeys(e) {
+    if (!presetBrowser.rows.length) return;
+    const i = Math.max(0, presetBrowser.rows.findIndex((p) => p.id === presetBrowser.selectedId));
+    if (e.key === "ArrowDown") { selectPreset(presetBrowser.rows[Math.min(presetBrowser.rows.length - 1, i + 1)].id, true); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { selectPreset(presetBrowser.rows[Math.max(0, i - 1)].id, true); e.preventDefault(); }
+    else if (e.key === "Home") { selectPreset(presetBrowser.rows[0].id, true); e.preventDefault(); }
+    else if (e.key === "End") { selectPreset(presetBrowser.rows[presetBrowser.rows.length - 1].id, true); e.preventDefault(); }
+    else if (e.key === "Enter") { loadSelectedPreset(); e.preventDefault(); }
+    else if (e.key.toLowerCase() === "f") { WF.Presets.toggleFavorite(presetBrowser.selectedId); renderPresetBrowser(); e.preventDefault(); }
+  }
+  initPresetBrowser();
   let flashTimer = null;
   function flash(el, msg) { el.textContent = msg; clearTimeout(flashTimer); flashTimer = setTimeout(() => (el.textContent = ""), 2600); }
   function pulsePresetName() {
@@ -309,6 +385,7 @@
   window.addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); if (k in KEYMAP) release(BASE + state.octave * 12 + KEYMAP[k]); });
   window.addEventListener("blur", () => { for (const m of [...pressed]) release(m); E.allNotesOff(); });
   window.addEventListener("wf:emergency-stop", clearPressedKeys);
+  window.addEventListener("wf:emergency-stop", () => setStatus(false));
   E._onNoteOn = (midi) => markKey(midi, true);
   E._onNoteOff = (midi) => markKey(midi, false);
 
@@ -316,7 +393,7 @@
   function setStatus(on) {
     $("led").classList.toggle("on", on);
     $("status").textContent = on ? "Live" : "Standby";
-    const b = $("pwr"); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "On" : "Power";
+    const b = $("pwr"); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "On" : "Off";
     $("scopeState").textContent = on ? "● running" : "— idle";
   }
   $("pwr").addEventListener("click", () => { E.ensureAudio(); if (E.ctx && E.ctx.state === "suspended") E.ctx.resume().then(() => setStatus(true)); else setStatus(true); });
@@ -337,6 +414,8 @@
   // -------------------------------------------------------------- canvases
   const envcv = $("envcv"), envx = envcv.getContext("2d");
   const scopecv = $("scope"), scx = scopecv.getContext("2d");
+  const spectrumCv = $("spectrum"), spectrumX = spectrumCv.getContext("2d");
+  const phaseCv = $("phaseScope"), phaseX = phaseCv.getContext("2d");
   function sizeCanvas(cv) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const r = cv.getBoundingClientRect();
@@ -359,8 +438,15 @@
     [[tx(a), ty(1)], [tx(a + d), ty(s)], [tx(a + d + 0.4), ty(s)]].forEach(([x, y]) => { envx.beginPath(); envx.arc(x, y, 2.4 * dpr, 0, 7); envx.fill(); });
     $("envState").textContent = `${Math.round(a * 1000)}·${Math.round(d * 1000)}·${Math.round(s * 100)}%·${Math.round(r * 1000)}`;
   }
-  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0;
-  $("clipLed").addEventListener("click", () => { clipLatched = false; $("clipLed").classList.remove("clipped"); $("clipLed").setAttribute("aria-pressed", "false"); });
+  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0, meterTimeBuf = null, freqData = null;
+  const smooth = { rms: 0, peak: 0, lufs: -70, corr: 1, top: 0, sub: 0, out: 0 };
+  function resetClip() {
+    clipLatched = false;
+    $("clipLed").classList.remove("clipped"); $("clipLed").setAttribute("aria-pressed", "false");
+    $("clipReset").classList.remove("clipped"); $("clipState").textContent = "clean";
+  }
+  $("clipLed").addEventListener("click", resetClip);
+  $("clipReset").addEventListener("click", resetClip);
   function audioVisualActive() {
     return E.voiceCount() > 0 ||
       (WF.Player && WF.Player.playing) ||
@@ -379,11 +465,49 @@
     }
     g.stroke();
   }
-  function drawMeters(ts) {
+  function db(v) { return v > 0 ? 20 * Math.log10(v) : -90; }
+  function pctDb(d, min, max) { return Math.max(0, Math.min(1, (d - min) / (max - min))); }
+  function activeFrame() {
+    let analyser = null, time = null, freq = null, sampleRate = E.sampleRate || 44100;
+    if (E.started && E.scopeBuffer && E.voiceCount() > 0) {
+      time = E.scopeBuffer; E.getTimeData(time);
+      freq = E.getFreqData ? E.getFreqData(freqData) : null;
+      if (freq && freq !== freqData) freqData = freq;
+      return { active: true, time, freq, sampleRate, mono: true };
+    }
+    if (WF.Player && WF.Player.playing && WF.Player.analyser) {
+      analyser = WF.Player.analyser; sampleRate = WF.Player.ctx ? WF.Player.ctx.sampleRate : sampleRate;
+      if (!meterTimeBuf || meterTimeBuf.length !== analyser.fftSize) meterTimeBuf = new Float32Array(analyser.fftSize);
+      if (!freqData || freqData.length !== analyser.frequencyBinCount) freqData = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getFloatTimeDomainData(meterTimeBuf); analyser.getByteFrequencyData(freqData);
+      return { active: true, time: meterTimeBuf, freq: freqData, sampleRate, mono: true };
+    }
+    return { active: false, time: null, freq: null, sampleRate, mono: true };
+  }
+  function calcMetrics(time, gr) {
+    let peak = 0, sum = 0;
+    if (time) for (let i = 0; i < time.length; i++) { const v = time[i]; peak = Math.max(peak, Math.abs(v)); sum += v * v; }
+    const rms = time ? Math.sqrt(sum / time.length) : 0;
+    // LUFS-M estimate: momentary loudness proxy from measured mean square. This is not
+    // a full EBU R128 integrated meter because the app has no K-weighted loudness filter.
+    const lufs = rms > 0 ? -0.691 + 10 * Math.log10(rms * rms) : -70;
+    const a = 0.18;
+    smooth.rms += (rms - smooth.rms) * a;
+    smooth.peak += (peak - smooth.peak) * 0.35;
+    smooth.lufs += (lufs - smooth.lufs) * 0.12;
+    smooth.corr += (1 - smooth.corr) * 0.18; // mono measured bus: L/R are identical, so correlation is honestly +1.
+    smooth.top += ((Math.abs(gr.top) || 0) - smooth.top) * 0.25;
+    smooth.sub += ((Math.abs(gr.sub) || 0) - smooth.sub) * 0.25;
+    smooth.out += ((Math.abs(gr.out) || 0) - smooth.out) * 0.25;
+    return { peak, rms, lufs };
+  }
+  function setBar(id, amount) { $(id).style.width = `${(Math.max(0, Math.min(1, amount)) * 100).toFixed(1)}%`; }
+  function drawMeters(ts, time, gr) {
     $("hdrFps").textContent = WF.Viz && WF.Viz.fps ? Math.round(WF.Viz.fps) : "--";
     if (E._onVoices) $("hdrVoices").textContent = `${E.voiceCount()}/${E.MAX_VOICES}`;
-    const peak = E.getOutputPeak ? E.getOutputPeak() : { mono: 0, left: 0, right: 0 };
-    const v = Math.max(0, Math.min(1, peak.mono || 0));
+    const m = calcMetrics(time, gr);
+    const outputPeak = E.getOutputPeak && E.voiceCount() > 0 ? E.getOutputPeak().mono : m.peak;
+    const v = Math.max(0, Math.min(1, outputPeak || 0));
     $("meterL").style.width = `${(v * 100).toFixed(1)}%`;
     $("meterR").style.width = `${(v * 100).toFixed(1)}%`;
     if (v >= holdPeak || ts > holdUntil) { holdPeak = v; holdUntil = ts + 1000; }
@@ -395,21 +519,55 @@
       $("clipLed").classList.add("clipped");
       $("clipLed").setAttribute("aria-pressed", "true");
     }
+    if (clipLatched) { $("clipReset").classList.add("clipped"); $("clipState").textContent = "CLIPPED"; }
+    setBar("rmsBar", pctDb(db(smooth.rms), -60, 0));
+    setBar("peakBar", pctDb(db(smooth.peak), -60, 0));
+    setBar("lufsBar", pctDb(smooth.lufs, -60, 0));
+    $("corrBar").style.width = `${((smooth.corr + 1) * 50).toFixed(1)}%`;
+    setBar("grTopBar", Math.min(1, smooth.top / 18)); setBar("grSubBar", Math.min(1, smooth.sub / 18)); setBar("grOutBar", Math.min(1, smooth.out / 18));
+    $("rmsReadout").textContent = `${db(smooth.rms).toFixed(1)} dB`;
+    $("peakReadout").textContent = `${db(smooth.peak).toFixed(1)} dB`;
+    $("lufsReadout").textContent = `${smooth.lufs.toFixed(1)}`;
+    $("corrReadout").textContent = `${smooth.corr >= 0 ? "+" : ""}${smooth.corr.toFixed(2)}`;
+    $("grTopReadout").textContent = smooth.top.toFixed(1);
+    $("grSubReadout").textContent = smooth.sub.toFixed(1);
+    $("grOutReadout").textContent = smooth.out.toFixed(1);
   }
-  function drawScope(ts) {
+  function drawSpectrum(freq, active) {
+    const dpr = sizeCanvas(spectrumCv), W = spectrumCv.width, H = spectrumCv.height;
+    spectrumX.clearRect(0, 0, W, H);
+    const grd = spectrumX.createLinearGradient(0, H, 0, 0); grd.addColorStop(0, "rgba(111,228,166,.12)"); grd.addColorStop(1, "rgba(246,178,60,.78)");
+    spectrumX.fillStyle = grd;
+    const bars = 48, bw = W / bars;
+    for (let i = 0; i < bars; i++) {
+      const t = i / bars, idx = freq ? Math.min(freq.length - 1, Math.floor(Math.pow(t, 2.2) * freq.length)) : 0;
+      const v = active && freq ? freq[idx] / 255 : 0.04 + 0.025 * Math.sin((performance.now() * 0.001) + i * 0.7);
+      const h = Math.max(1, v * H * 0.92);
+      spectrumX.fillRect(i * bw + 1, H - h, Math.max(1, bw - 2), h);
+    }
+  }
+  function drawPhase(time, active) {
+    const dpr = sizeCanvas(phaseCv), W = phaseCv.width, H = phaseCv.height, cx = W / 2, cy = H / 2, r = Math.min(W, H) * 0.42;
+    phaseX.clearRect(0, 0, W, H);
+    phaseX.strokeStyle = "rgba(245,225,190,.10)"; phaseX.lineWidth = 1 * dpr;
+    phaseX.beginPath(); phaseX.arc(cx, cy, r, 0, Math.PI * 2); phaseX.moveTo(cx - r, cy); phaseX.lineTo(cx + r, cy); phaseX.moveTo(cx, cy - r); phaseX.lineTo(cx, cy + r); phaseX.stroke();
+    phaseX.strokeStyle = active ? "rgba(111,228,166,.78)" : "rgba(111,228,166,.25)"; phaseX.lineWidth = 1.4 * dpr; phaseX.beginPath();
+    const n = time ? Math.min(512, time.length) : 96;
+    for (let i = 0; i < n; i++) {
+      const v = time ? time[Math.floor((i / n) * time.length)] : Math.sin(i * 0.18 + performance.now() * 0.001) * 0.03;
+      const x = cx + v * r;
+      const y = cy - v * r; // mono bus draws a stable diagonal phase line.
+      i === 0 ? phaseX.moveTo(x, y) : phaseX.lineTo(x, y);
+    }
+    phaseX.stroke();
+  }
+  function drawScope(ts, frame) {
     const dpr = sizeCanvas(scopecv), W = scopecv.width, H = scopecv.height;
     scx.clearRect(0, 0, W, H);
     scx.strokeStyle = "rgba(111,228,166,0.10)"; scx.lineWidth = 1 * dpr;
     scx.beginPath(); scx.moveTo(0, H / 2); scx.lineTo(W, H / 2); scx.stroke();
-    const active = audioVisualActive();
-    let buf = null;
-    if (E.started && E.scopeBuffer && E.voiceCount() > 0) {
-      buf = E.scopeBuffer;
-      E.getTimeData(buf);
-    } else if (WF.Player && WF.Player.playing && WF.Player.analyser) {
-      buf = E.scopeBuffer || new Float32Array(WF.Player.analyser.fftSize);
-      WF.Player.analyser.getFloatTimeDomainData(buf);
-    }
+    const active = frame.active || audioVisualActive();
+    const buf = frame.time;
     if (buf && active) {
       let start = 0; for (let i = 1; i < buf.length / 2; i++) { if (buf[i - 1] < 0 && buf[i] >= 0) { start = i; break; } }
       const span = Math.floor(buf.length / 2);
@@ -418,11 +576,12 @@
       for (let i = 0; i < span; i++) { const v = buf[start + i] || 0; const x = (i / span) * W; const y = H / 2 - v * (H * 0.42); i === 0 ? scx.moveTo(x, y) : scx.lineTo(x, y); }
       scx.stroke(); scx.shadowBlur = 0;
     } else if (!active) drawIdleNoise(scx, W, H, dpr);
-    if (E.getReduction) { const gr = E.getReduction(); $("compGR").textContent = `${gr.top.toFixed(1)} / ${gr.sub.toFixed(1)} / ${gr.out.toFixed(1)} dB`; }
-    drawMeters(ts || performance.now());
+    const gr = E.getReduction ? E.getReduction() : { top: 0, sub: 0, out: 0 };
+    $("compGR").textContent = `${gr.top.toFixed(1)} / ${gr.sub.toFixed(1)} / ${gr.out.toFixed(1)} dB`;
+    drawSpectrum(frame.freq, active); drawPhase(buf, active); drawMeters(ts || performance.now(), buf, gr);
   }
   drawEnv();
-  if (WF.Viz) WF.Viz.register("synth-scope-meters", drawScope);
+  if (WF.Viz) WF.Viz.register("synth-scope-meters", (ts) => drawScope(ts, activeFrame()));
   window.addEventListener("resize", drawEnv);
 
   const hashPreset = WF.Presets.loadFromHash();

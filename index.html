@@ -34,9 +34,57 @@
         <span class="led" id="led"></span>
         <span class="status" id="status">Standby</span>
         <button class="panic" id="panicStop" aria-label="Emergency stop all audio">Emergency Stop</button>
-        <button class="pwr" id="pwr" aria-pressed="false">Power</button>
+        <button class="pwr" id="pwr" aria-pressed="false">Off</button>
       </div>
     </header>
+
+    <!-- PROJECT MANAGEMENT -->
+    <section class="board project-board" id="projectBoard" aria-label="Project management">
+      <div class="board-head"><h2>Project</h2><span class="board-sub">Autosave · Undo · Layouts · Samples</span></div>
+      <div class="project-grid">
+        <div class="project-pane">
+          <div class="fieldrow">
+            <label class="fld"><span>Name</span><input type="text" id="projectName" placeholder="Untitled Project" /></label>
+            <label class="fld"><span>Author</span><input type="text" id="projectAuthor" placeholder="User" /></label>
+          </div>
+          <div class="fieldrow">
+            <label class="fld"><span>Genre</span><input type="text" id="projectGenre" placeholder="Dubstep" /></label>
+            <label class="fld"><span>Key</span><input type="text" id="projectKey" placeholder="—" /></label>
+            <label class="fld"><span>BPM</span><input type="number" id="projectBpm" min="40" max="300" step="1" /></label>
+          </div>
+          <label class="fld full"><span>Notes</span><input type="text" id="projectNotes" placeholder="Session notes, references, mix decisions…" /></label>
+          <div class="btnrow">
+            <button class="tbtn" id="projectNew">New</button>
+            <button class="tbtn" id="projectSave">Save Project</button>
+            <button class="tbtn" id="projectLoad">Load Selected</button>
+            <button class="tbtn" id="projectSnapshot">Snapshot</button>
+          </div>
+          <div class="btnrow">
+            <button class="toggle" id="projectUndo">Undo</button>
+            <button class="toggle" id="projectRedo">Redo</button>
+            <button class="toggle" id="projectRecover">Recover Autosave</button>
+          </div>
+          <div class="screen-cap"><span>Status</span><b id="projectStatus">autosave ready</b></div>
+        </div>
+        <div class="project-pane">
+          <div class="project-toolbar">
+            <label class="fld"><span>Projects</span><select id="projectList"></select></label>
+            <label class="fld"><span>Recent</span><select id="recentProjects"></select></label>
+          </div>
+          <div class="project-toolbar">
+            <label class="fld"><span>Layout</span><select id="layoutSelect"><option>Studio</option><option>Browser</option><option>Performance</option></select></label>
+            <label class="fld"><span>Workspace</span><select id="workspacePreset"></select></label>
+          </div>
+          <div class="btnrow">
+            <button class="toggle" id="workspaceSave">Save Workspace</button>
+            <button class="toggle" id="workspaceLoad">Load Workspace</button>
+          </div>
+          <div class="dock-list" id="dockList" aria-label="Dockable panel visibility"></div>
+          <div class="snapshot-list" id="snapshotList" aria-label="Session snapshots"></div>
+          <div class="sample-list" id="sampleList">No samples loaded.</div>
+        </div>
+      </div>
+    </section>
 
     <div class="rack">
       <!-- OSCILLATORS -->
@@ -126,6 +174,20 @@
           <div class="knob" tabindex="0" role="slider" data-param="drive" data-label="Drive" data-min="0" data-max="1" data-curve="lin" data-default="0.18" aria-label="Drive"></div>
           <div class="knob" tabindex="0" role="slider" data-param="master" data-label="Master" data-min="0" data-max="1" data-curve="lin" data-default="0.8" aria-label="Master volume"></div>
         </div>
+        <div class="viz-bridge" aria-label="Output visual meters">
+          <div class="screen viz-spectrum"><canvas id="spectrum"></canvas></div>
+          <div class="screen viz-phase"><canvas id="phaseScope"></canvas></div>
+          <div class="viz-meter-grid">
+            <div class="viz-meter"><span>RMS</span><i><b id="rmsBar"></b></i><em id="rmsReadout">-∞ dB</em></div>
+            <div class="viz-meter"><span>PEAK</span><i><b id="peakBar"></b></i><em id="peakReadout">-∞ dB</em></div>
+            <div class="viz-meter"><span>LUFS-M</span><i><b id="lufsBar"></b></i><em id="lufsReadout">-∞</em></div>
+            <div class="viz-meter"><span>CORR</span><i class="centered"><b id="corrBar"></b></i><em id="corrReadout">+1.00</em></div>
+            <div class="viz-meter"><span>GR TOP</span><i><b id="grTopBar"></b></i><em id="grTopReadout">0.0</em></div>
+            <div class="viz-meter"><span>GR SUB</span><i><b id="grSubBar"></b></i><em id="grSubReadout">0.0</em></div>
+            <div class="viz-meter"><span>GR OUT</span><i><b id="grOutBar"></b></i><em id="grOutReadout">0.0</em></div>
+            <div class="viz-meter"><span>CLIP</span><button class="clip-reset" id="clipReset" type="button">CLEAR</button><em id="clipState">clean</em></div>
+          </div>
+        </div>
         <div class="screen-cap"><span>Polyphony</span><b id="voices">0 voices</b></div>
         <div class="screen-cap"><span>Sample rate</span><b id="srate">— kHz</b></div>
         <div class="screen-cap"><span>Base latency</span><b id="baseLat">interactive</b></div>
@@ -145,9 +207,25 @@
           <button class="toggle" id="presetShare">Copy Share Link</button>
           <label class="toggle filebtn">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
         </div>
-        <label class="fld full"><span>Factory</span><select id="factoryPreset"></select></label>
-        <div class="btnrow">
-          <button class="toggle" id="factoryLoad">Load Factory</button>
+        <div class="preset-browser" id="presetBrowser">
+          <label class="fld full"><span>Search</span><input type="search" id="presetSearch" placeholder="name, tag, author, genre…" autocomplete="off" /></label>
+          <div class="preset-filters">
+            <label class="fld"><span>Category</span><select id="presetCategory"></select></label>
+            <label class="fld"><span>Source</span><select id="presetSource"><option>All</option><option>Factory</option><option>User</option></select></label>
+            <label class="fld"><span>Sort</span><select id="presetSort"><option>Name</option><option>Date</option><option>Author</option><option>Popularity</option></select></label>
+            <label class="fld"><span>Tag</span><select id="presetTag"></select></label>
+          </div>
+          <div class="preset-tabs" role="group" aria-label="Preset library filters">
+            <button class="preset-tab on" id="presetAll" type="button">All</button>
+            <button class="preset-tab" id="presetFavs" type="button">Favorites</button>
+            <button class="preset-tab" id="presetRecent" type="button">Recent</button>
+          </div>
+          <div class="preset-list" id="presetList" role="listbox" tabindex="0" aria-label="Preset browser"></div>
+          <div class="preset-detail" id="presetDetail">Select a preset.</div>
+          <div class="btnrow">
+            <button class="toggle" id="presetLoadSelected">Load Selected</button>
+            <button class="toggle" id="presetFavorite">Favorite</button>
+          </div>
         </div>
         <div class="screen-cap"><span>Status</span><b id="presetMsg"></b></div>
       </section>
@@ -273,6 +351,7 @@
   <script src="js/sequencer.js"></script>
   <script src="js/fuzzer.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/projects.js"></script>
   <script src="js/stopall.js"></script>
 </body>
 </html>

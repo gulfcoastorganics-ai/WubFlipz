@@ -64,6 +64,7 @@
   const voices = new Map(); // playedMidi -> voice object
   let scopeBuf = null;
   let meterBuf = null;
+  let freqBuf = null;
 
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
   const eqp = (mix) => [Math.cos(mix * Math.PI / 2), Math.sin(mix * Math.PI / 2)];
@@ -106,7 +107,7 @@
     N.outCeiling = ctx.createDynamicsCompressor();
     N.outCeiling.threshold.value = -1.0; N.outCeiling.knee.value = 0; N.outCeiling.ratio.value = 20;
     N.outCeiling.attack.value = 0.001; N.outCeiling.release.value = 0.05;
-    N.analyser = ctx.createAnalyser(); N.analyser.fftSize = 2048;
+    N.analyser = ctx.createAnalyser(); N.analyser.fftSize = 2048; N.analyser.smoothingTimeConstant = 0.82;
     N.meterAnalyser = ctx.createAnalyser(); N.meterAnalyser.fftSize = 2048;
     N.sumBus.connect(N.master);
     N.master.connect(N.outCeiling);
@@ -164,6 +165,7 @@
     A.started = true;
     scopeBuf = new Float32Array(N.analyser.fftSize);
     meterBuf = new Float32Array(N.meterAnalyser.fftSize);
+    freqBuf = new Uint8Array(N.analyser.frequencyBinCount);
     WF.Engine._onStart && WF.Engine._onStart();
   }
 
@@ -331,6 +333,8 @@
     get started() { return A.started; },
     voiceCount: () => voices.size,
     getTimeData: (buf) => { if (N.analyser) N.analyser.getFloatTimeDomainData(buf); return buf; },
+    getFreqData: (buf) => { if (N.analyser) N.analyser.getByteFrequencyData(buf || freqBuf); return buf || freqBuf; },
+    get sampleRate() { return A.ctx ? A.ctx.sampleRate : 44100; },
     getOutputPeak() {
       if (!N.meterAnalyser || !meterBuf) return { mono: 0, left: 0, right: 0 };
       N.meterAnalyser.getFloatTimeDomainData(meterBuf);

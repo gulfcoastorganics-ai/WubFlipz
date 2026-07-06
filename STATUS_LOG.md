@@ -5,6 +5,74 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — WUBFLIPZ PHASE 4: project/workspace management
+
+Added DAW-style workflow management without changing DSP.
+- New Project board with project metadata: name, author, genre, key, BPM, notes.
+- Project Browser with saved projects, recent projects, load selected, new project, and
+  save project actions.
+- Autosave writes a recovery project to LocalStorage after edits and on page unload.
+- Crash Recovery button loads the latest autosave when present.
+- Undo/Redo history stores full project snapshots in memory with debounced edit capture.
+- Session Snapshots save named/restorable project states inside the active project.
+- Workspace presets persist layout, panel visibility, and resized panel heights.
+- Dockable panels implemented as per-panel show/hide controls; resizable panels use
+  native vertical resizing.
+- Multiple layouts implemented: Studio, Browser, Performance.
+- Sample Management shows a manifest of loaded sample/track/pad references with duration,
+  channel count, and sample rate where available. Audio data is not embedded into
+  LocalStorage.
+- Verified headlessly: `js/projects.js` syntax passes; project DOM IDs resolve; model
+  harness covers save/project persistence/recovery/sample manifest; `git diff --check`
+  passes.
+
+---
+
+## 2026-07-05 — WUBFLIPZ PHASE 2: upgraded visualization bridge
+
+Upgraded visual feedback without adding duplicate animation loops.
+- Added a Drive/Out meter bridge with live Spectrum Analyzer, Phase Scope, RMS Meter,
+  Peak Meter, LUFS-M estimate, Correlation Meter, Gain Reduction meters, and Clip
+  Indicator/Clear control.
+- Existing oscilloscope now shares the same measurement frame as the meter bridge and
+  continues to use the unified `WF.Viz` callback. `js/vizloop.js` remains the only file
+  with `requestAnimationFrame` / `cancelAnimationFrame`.
+- Spectrum uses real analyser frequency bins from the synth final bus, or the sample
+  player analyser when sample playback is the active measured source.
+- Phase/correlation are honest for the current measured source. The synth output bus is
+  mono at this point, so phase draws a stable diagonal and correlation reports +1.00
+  rather than inventing stereo width.
+- LUFS-M is labeled as a momentary estimate derived from measured mean square; it is not
+  a full integrated EBU R128/K-weighted loudness implementation.
+- Idle visuals use subdued canvas motion when no measured audio is active; no fake meter
+  numbers are displayed.
+- Smooth interpolation added for RMS/peak/LUFS/correlation/GR values; visual updates are
+  still driven only by `WF.Viz`.
+- Verified headlessly: `js/engine.js` and `js/ui.js` syntax pass; all DOM IDs resolve;
+  rAF ownership remains single-loop; `git diff --check` passes.
+
+---
+
+## 2026-07-05 — WUBFLIPZ PHASE 1: professional preset browser
+
+Transformed the existing preset workflow without redesigning the app shell.
+- Presets panel now includes searchable browser, category/source/tag filters, All/Favorites/
+  Recent tabs, sorting by Name/Date/Author/Popularity, keyboard navigation, and a metadata
+  detail panel.
+- Categories supported: Bass, Growl, Wobble, Lead, FX, Pad, Drum.
+- Factory presets now expose metadata: description, BPM, key, character, genre, author,
+  popularity, category, and multiple tags.
+- User presets are saved as a LocalStorage library instead of only one slot; the legacy
+  single-preset key is still read/written for backward compatibility.
+- Favorites and recently-used ordering persist in LocalStorage.
+- JSON upload/download and share-link compatibility are preserved by normalizing older
+  preset JSON into the richer metadata model at load time.
+- Verified headlessly: `js/presets.js` and `js/ui.js` syntax pass; preset browser DOM IDs
+  exist; search/source/favorite/recent/user-save model checks pass; `git diff --check`
+  passes.
+
+---
+
 ## 2026-07-05 — POLISH P1: consolidated viz loop + honest live feedback
 
 Interaction/visual polish only; no new audio feature was added.
