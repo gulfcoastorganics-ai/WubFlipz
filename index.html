@@ -81,65 +81,6 @@
       <button class="toggle" id="newSessionQuick" type="button">New Session</button>
     </section>
 
-    <!-- PROJECT MANAGEMENT -->
-    <section class="board project-board" id="projectBoard" aria-label="Project management" data-tip="Project stores the entire session: preset, layout, metadata, snapshots, and sample references.">
-      <div class="board-head"><h2>Project</h2><span class="board-sub">Autosave · Undo · Layouts · Samples</span></div>
-      <div class="project-compact">
-        <label class="fld project-name"><span>Project Name</span><input type="text" id="projectName" placeholder="Untitled Project" /></label>
-        <div class="autosave-pill ok" id="autosaveStatus" aria-live="polite">
-          <span class="autosave-dot" aria-hidden="true"></span>
-          <b>Autosave ready</b>
-          <small id="autosaveTime">—</small>
-        </div>
-        <button class="tbtn primary-action" id="projectSave" type="button">Save</button>
-        <button class="toggle" id="projectUndo" type="button" title="Undo (Ctrl/Cmd+Z)">Undo</button>
-        <button class="toggle" id="projectRedo" type="button" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
-        <button class="toggle project-expand" id="projectExpand" type="button" aria-expanded="false" aria-controls="projectExpanded">Expand</button>
-        <div class="save-semantics"><b id="sessionDirty">Session Saved</b><span>Project saves this session.</span></div>
-      </div>
-      <div class="project-expanded" id="projectExpanded" aria-hidden="true" inert>
-      <div class="project-grid">
-        <div class="project-pane">
-          <div class="fieldrow">
-            <label class="fld"><span>Author</span><input type="text" id="projectAuthor" placeholder="User" /></label>
-            <label class="fld"><span>Genre</span><input type="text" id="projectGenre" placeholder="Dubstep" /></label>
-          </div>
-          <div class="fieldrow">
-            <label class="fld"><span>Key</span><input type="text" id="projectKey" placeholder="—" /></label>
-            <label class="fld"><span>BPM</span><input type="number" id="projectBpm" min="40" max="300" step="1" /></label>
-          </div>
-          <label class="fld full"><span>Notes</span><input type="text" id="projectNotes" placeholder="Session notes, references, mix decisions…" /></label>
-          <div class="btnrow">
-            <button class="tbtn" id="projectNew">New</button>
-            <button class="tbtn" id="projectLoad">Load Selected</button>
-            <button class="toggle" id="projectRecover">Recover Autosave</button>
-            <button class="tbtn secondary-action" id="projectSnapshot" data-tip="Snapshot creates a restore point for this session.">Snapshot</button>
-          </div>
-          <p class="microcopy">Session saves this project. Snapshot creates a restore point.</p>
-          <div class="screen-cap"><span>Status</span><b id="projectStatus" aria-live="polite">autosave ready</b></div>
-        </div>
-        <div class="project-pane">
-          <div class="project-toolbar">
-            <label class="fld"><span>Projects</span><select id="projectList"></select></label>
-            <label class="fld"><span>Recent</span><select id="recentProjects"></select></label>
-          </div>
-          <div class="project-toolbar">
-            <label class="fld"><span>Layout</span><select id="layoutSelect"><option>Studio</option><option>Browser</option><option>Performance</option></select></label>
-            <label class="fld" data-tip="Layout stores panel visibility and sizing only."><span>Layout Preset</span><select id="workspacePreset"></select></label>
-          </div>
-          <div class="btnrow">
-            <button class="toggle secondary-action" id="workspaceSave">Save Layout</button>
-            <button class="toggle secondary-action" id="workspaceLoad">Load Layout</button>
-          </div>
-          <p class="microcopy">Layout saves this workspace view only.</p>
-          <div class="dock-list" id="dockList" aria-label="Dockable panel visibility"></div>
-          <div class="snapshot-list" id="snapshotList" aria-label="Session snapshots"></div>
-          <div class="sample-list" id="sampleList">No samples loaded.</div>
-        </div>
-      </div>
-      </div>
-    </section>
-
     <div class="rack">
       <!-- OSCILLATORS -->
       <section class="module" aria-label="Oscillators">
@@ -258,12 +199,6 @@
           <button class="toggle" id="presetLoad">Load</button>
         </div>
         <p class="microcopy">Preset saves this sound.</p>
-        <div class="btnrow">
-          <button class="toggle secondary-action" id="presetDownload">Export JSON</button>
-          <button class="toggle" id="presetShare">Copy Share Link</button>
-          <label class="toggle filebtn secondary-action">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
-        </div>
-        <p class="microcopy">Share copies current preset. JSON exports a preset file.</p>
         <div class="preset-browser" id="presetBrowser">
           <label class="fld full"><span>Search</span><input type="search" id="presetSearch" placeholder="name, tag, author, genre…" autocomplete="off" /></label>
           <div class="preset-filters">
@@ -288,6 +223,15 @@
       </section>
     </div>
 
+    <!-- KEYBOARD -->
+    <div class="kbwrap">
+      <div class="kbmeta">
+        <span>Play with mouse, touch, or your keyboard</span>
+        <span>Notes <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd>… &nbsp; Octave <kbd>Z</kbd><kbd>X</kbd></span>
+      </div>
+      <div class="kbscroll"><div class="keys" id="keys"></div></div>
+    </div>
+
     <!-- SAMPLE PLAYER (Stage 2) -->
     <section class="board" id="playerBoard" aria-label="Sample player">
       <div class="board-head"><h2>Sample</h2><span class="board-sub">Load Audio · Transport · Loop · Zoom</span></div>
@@ -308,18 +252,6 @@
       </div>
       <p class="board-note gate-hint" id="sampleNext">Load audio to unlock Analyze and Split.</p>
       <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
-    </section>
-
-    <!-- SOUND FUZZER -->
-    <section class="board advanced-board" id="fuzzerBoard" aria-label="Sound fuzzer preset breeding">
-      <div class="board-head"><h2>Fuzzer</h2><span class="board-sub">Advanced · Preset breeding · synth params only</span></div>
-      <p class="board-note">Uses the current active preset as parent, including matched-wobble patches. Sequencer pattern mutation is deferred.</p>
-      <div class="btnrow">
-        <button class="tbtn" id="fuzzGenerate">Generate 6 Variants</button>
-        <button class="tbtn" id="fuzzBreed">Breed Favorites</button>
-      </div>
-      <p class="board-note" id="fuzzMsg">Generate variants from the current active preset.</p>
-      <div class="fuzz-grid" id="fuzzGrid"></div>
     </section>
 
     <!-- ANALYZE (Stage 5) -->
@@ -390,14 +322,99 @@
       <p class="board-note">Click a lane to seek · per-lane Vol / Pan / Mute (M) / Solo (S) · the Sample loop region applies here too.</p>
     </section>
 
-    <!-- KEYBOARD -->
-    <div class="kbwrap">
-      <div class="kbmeta">
-        <span>Play with mouse, touch, or your keyboard</span>
-        <span>Notes <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd>… &nbsp; Octave <kbd>Z</kbd><kbd>X</kbd></span>
+    <!-- SAVE / SHARE -->
+    <section class="board project-board" id="projectBoard" aria-label="Project management" data-tip="Project stores the entire session: preset, layout, metadata, snapshots, and sample references.">
+      <div class="board-head"><h2>Save / Share</h2><span class="board-sub">Session Save · Undo · Recovery</span></div>
+      <div class="project-compact">
+        <label class="fld project-name"><span>Project Name</span><input type="text" id="projectName" placeholder="Untitled Project" /></label>
+        <div class="autosave-pill ok" id="autosaveStatus" aria-live="polite">
+          <span class="autosave-dot" aria-hidden="true"></span>
+          <b>Autosave ready</b>
+          <small id="autosaveTime">—</small>
+        </div>
+        <button class="tbtn primary-action" id="projectSave" type="button">Save</button>
+        <button class="toggle" id="projectUndo" type="button" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+        <button class="toggle" id="projectRedo" type="button" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
+        <button class="toggle project-expand" id="projectExpand" type="button" aria-expanded="false" aria-controls="projectExpanded">Expand</button>
+        <div class="save-semantics"><b id="sessionDirty">Session Saved</b><span>Project saves this session.</span></div>
       </div>
-      <div class="kbscroll"><div class="keys" id="keys"></div></div>
-    </div>
+      <div class="project-expanded" id="projectExpanded" aria-hidden="true" inert>
+      <div class="project-grid">
+        <div class="project-pane">
+          <div class="fieldrow">
+            <label class="fld"><span>Author</span><input type="text" id="projectAuthor" placeholder="User" /></label>
+            <label class="fld"><span>Genre</span><input type="text" id="projectGenre" placeholder="Dubstep" /></label>
+          </div>
+          <div class="fieldrow">
+            <label class="fld"><span>Key</span><input type="text" id="projectKey" placeholder="—" /></label>
+            <label class="fld"><span>BPM</span><input type="number" id="projectBpm" min="40" max="300" step="1" /></label>
+          </div>
+          <label class="fld full"><span>Notes</span><input type="text" id="projectNotes" placeholder="Session notes, references, mix decisions…" /></label>
+          <div class="btnrow">
+            <button class="tbtn" id="projectNew">New</button>
+            <button class="tbtn" id="projectLoad">Load Selected</button>
+            <button class="toggle" id="projectRecover">Recover Autosave</button>
+          </div>
+          <p class="microcopy">Session saves this project.</p>
+          <div class="screen-cap"><span>Status</span><b id="projectStatus" aria-live="polite">autosave ready</b></div>
+        </div>
+        <div class="project-pane">
+          <div class="project-toolbar">
+            <label class="fld"><span>Projects</span><select id="projectList"></select></label>
+            <label class="fld"><span>Recent</span><select id="recentProjects"></select></label>
+          </div>
+          <div class="sample-list" id="sampleList">No samples loaded.</div>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <!-- ADVANCED ZONE -->
+    <section class="board advanced-board advanced-zone" id="advancedZone" aria-label="Advanced tools">
+      <div class="board-head"><h2>Advanced</h2><span class="board-sub">Export · Snapshots · Layout · Fuzzer</span></div>
+      <div class="advanced-grid">
+        <div class="advanced-pane">
+          <h3>Sound Export</h3>
+          <div class="btnrow">
+            <button class="toggle secondary-action" id="presetDownload">Export JSON</button>
+            <button class="toggle" id="presetShare">Copy Share Link</button>
+            <label class="toggle filebtn secondary-action">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
+          </div>
+          <p class="microcopy">Share copies current preset. JSON exports a preset file.</p>
+        </div>
+        <div class="advanced-pane">
+          <h3>Snapshots</h3>
+          <div class="btnrow">
+            <button class="tbtn secondary-action" id="projectSnapshot" data-tip="Snapshot creates a restore point for this session.">Snapshot</button>
+          </div>
+          <p class="microcopy">Snapshot creates a restore point.</p>
+          <div class="snapshot-list" id="snapshotList" aria-label="Session snapshots"></div>
+        </div>
+        <div class="advanced-pane">
+          <h3>Layout</h3>
+          <div class="project-toolbar">
+            <label class="fld"><span>Layout</span><select id="layoutSelect"><option>Studio</option><option>Browser</option><option>Performance</option></select></label>
+            <label class="fld" data-tip="Layout stores panel visibility and sizing only."><span>Layout Preset</span><select id="workspacePreset"></select></label>
+          </div>
+          <div class="btnrow">
+            <button class="toggle secondary-action" id="workspaceSave">Save Layout</button>
+            <button class="toggle secondary-action" id="workspaceLoad">Load Layout</button>
+          </div>
+          <p class="microcopy">Layout saves this workspace view only.</p>
+          <div class="dock-list" id="dockList" aria-label="Dockable panel visibility"></div>
+        </div>
+      </div>
+      <section class="board advanced-board" id="fuzzerBoard" aria-label="Sound fuzzer preset breeding">
+        <div class="board-head"><h2>Fuzzer</h2><span class="board-sub">Advanced · Preset breeding · synth params only</span></div>
+        <p class="board-note">Uses the current active preset as parent, including matched-wobble patches. Sequencer pattern mutation is deferred.</p>
+        <div class="btnrow">
+          <button class="tbtn" id="fuzzGenerate">Generate 6 Variants</button>
+          <button class="tbtn" id="fuzzBreed">Breed Favorites</button>
+        </div>
+        <p class="board-note" id="fuzzMsg">Generate variants from the current active preset.</p>
+        <div class="fuzz-grid" id="fuzzGrid"></div>
+      </section>
+    </section>
 
     <footer>wubflipz WF-1 — standalone Web Audio instrument · no build, no network · sibling to wublabz</footer>
   </div>

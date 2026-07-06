@@ -9,6 +9,25 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## UX Sprint 3.1 — declutter and reorder
+
+- [ ] (EYES) Page order: vertical scroll now matches the workflow strip without making
+      the app feel newly redesigned: Design → Sample → Analyze → Split → Arrange →
+      Save / Share → Advanced.
+- [ ] (EYES/A11Y) Advanced zone: Fuzzer, Export JSON, Copy Share Link, Upload,
+      Snapshot, and Layout remain visible, keyboard-reachable, and discoverable at the
+      bottom without competing with the main workflow.
+- [ ] (EYES) Moved advanced controls still fire their original handlers in a real
+      browser: JSON export, share-link copy, JSON upload, snapshot creation, layout
+      save/load, dock visibility, fuzzer generate, and fuzzer breed.
+- [ ] (EYES) Keyboard placement after Design reduces scroll/travel without confusing
+      the relationship between the audition strip and full keyboard.
+- [ ] (EYES) Browser console pass: confirm no runtime errors after DOM reordering.
+- [ ] (EYES/DSP-METER S2) Meter null-state requires real playback repro. User-observed
+      idle values were RMS `-3972.2 dB` and Peak `-6466.1 dB`; Chromium runtime is
+      blocked in this container, so playback/idle RMS/Peak/Corr/LUFS readings still
+      need collection before deciding display-null fix vs. DSP-meter bug.
+
 ## UX Sprint 3 — workflow compression
 
 - [ ] (EYES) Workflow strip 2.0: Sound → Play → Design → Sample → Analyze → Split →

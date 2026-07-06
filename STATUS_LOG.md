@@ -5,6 +5,44 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — UX SPRINT 3.1: declutter and reorder
+
+UX/layout pass only; no DSP, synthesis, scheduling, or audio routing changed.
+- Reordered the top-level page flow to match the workflow strip:
+  Design → Play/Keyboard → Sample → Analyze → Split → Arrange → Save / Share →
+  Advanced.
+- Moved the full keyboard directly after the Design rack so sound auditioning stays
+  adjacent to sound creation.
+- Moved Save / Share below Arrange while preserving the original project/session
+  controls and IDs.
+- Consolidated advanced tools at the bottom of the page in a visible Advanced zone:
+  Fuzzer, Export JSON, Copy Share Link, Upload, Snapshot, and Layout controls.
+- Kept Save and Load in the main sound/session workflow; only export, breeding,
+  snapshot, and layout utilities moved to Advanced.
+- Added minimal Advanced-zone CSS so the moved tools remain discoverable but visually
+  quiet and responsive.
+
+Meter null-state branch:
+- Required playback/idle RMS/Peak/Corr/LUFS repro was attempted against the running
+  dev server on `http://localhost:4173/`.
+- Chromium still exits before page execution with the container crashpad/cpufreq error
+  (`open /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`), so actual playback
+  readings could not be collected here.
+- Per Sprint 3.1 rules, no meter display patch was made without real playback readings;
+  the idle `-3972.2 dB` RMS / `-6466.1 dB` Peak observation remains deferred to S2
+  metering validation.
+
+Verified static/headless:
+- All `js/*.js` pass `node --check`.
+- DOM ID cross-check passes: 182 IDs, no duplicates, no missing `$()` references across
+  `ui.js`, `projects.js`, `ux.js`, `presets.js`, and `fuzzer.js`.
+- Scroll-order marker check passes in the requested order.
+- `git diff --check` passes.
+- Browser console and moved-control click behavior still require a real browser pass
+  because Chromium runtime is blocked in this container.
+
+---
+
 ## 2026-07-06 — UX SPRINT 3: workflow compression
 
 Workflow compression only; no DSP, synthesis, scheduling, or audio routing changed.

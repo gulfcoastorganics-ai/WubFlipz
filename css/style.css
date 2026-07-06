@@ -314,6 +314,14 @@ body[data-layout="Performance"] .kbwrap{margin-top:12px;}
 .board.workflow-focus,.module.workflow-focus{border-color:rgba(246,178,60,.42);}
 .advanced-board{opacity:.72;}
 .advanced-board:hover,.advanced-board:focus-within{opacity:1;}
+.advanced-zone{border-color:rgba(245,225,190,.10);background:linear-gradient(180deg,rgba(19,17,13,.82),rgba(14,12,10,.78));}
+.advanced-zone>.board-head h2{color:var(--dim);}
+.advanced-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px;}
+.advanced-pane{border:1px solid var(--line);border-radius:10px;background:rgba(20,16,9,.72);padding:12px;}
+.advanced-pane h3{margin:0 0 10px;font-family:var(--mono);font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--dim);}
+.advanced-pane .project-toolbar{margin:0 0 8px;}
+.advanced-zone #fuzzerBoard{margin-top:12px;}
+@media (max-width:860px){.advanced-grid{grid-template-columns:1fr;}}
 @media (max-width:760px){.seq-pads{grid-template-columns:1fr 1fr;}.seq-grid{grid-template-columns:86px repeat(16,28px);}}
 @media (max-width:520px){.seq-pads{grid-template-columns:1fr;}}
 
