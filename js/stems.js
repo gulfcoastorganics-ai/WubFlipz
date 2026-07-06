@@ -14,7 +14,8 @@
   // ---- shared track registry (consumed by Stage 4 lanes) ----
   const Tracks = { list: [], onChange: [], _id: 0,
     add(name, buffer, kind) { const t = { id: ++this._id, name, buffer, kind: kind || "derived" }; this.list.push(t); this.emit(); return t; },
-    clearDerived() { this.list = this.list.filter((t) => t.kind === "original"); this.emit(); },
+    // no kind: drop every derived track; with kind: drop only that derived family
+    clearDerived(kind) { this.list = this.list.filter((t) => (kind ? t.kind !== kind : t.kind === "original")); this.emit(); },
     reset() { this.list = []; this.emit(); },
     emit() { this.onChange.forEach((cb) => { try { cb(this.list); } catch (e) {} }); },
   };
@@ -111,17 +112,24 @@
   }
 
   // ---- orchestration ----
+  // Re-running a split REPLACES that split's previous pair instead of stacking
+  // more full-length buffers — repeated clicks were an unbounded-memory path in
+  // the 2.7 GB environment (AUDIT_REPORT_2026-07-05 finding #2). One pair is kept
+  // per family so HPSS + Mid/Side can still coexist: max 4 derived tracks total.
+  // (Cleared only after a successful run so a failed run doesn't wipe old stems.)
   async function runHPSS(audioBuffer, ctx, onProgress) {
     const mono = monoMix(audioBuffer);
     const { harmonic, percussive } = await hpss(mono, audioBuffer.sampleRate, onProgress);
-    Tracks.add("Harmonic (HPSS)", makeBuffer(ctx, harmonic, audioBuffer.sampleRate));
-    Tracks.add("Percussive (HPSS)", makeBuffer(ctx, percussive, audioBuffer.sampleRate));
+    Tracks.clearDerived("hpss");
+    Tracks.add("Harmonic (HPSS)", makeBuffer(ctx, harmonic, audioBuffer.sampleRate), "hpss");
+    Tracks.add("Percussive (HPSS)", makeBuffer(ctx, percussive, audioBuffer.sampleRate), "hpss");
   }
   function runMidSide(audioBuffer, ctx) {
     const ms = midSide(audioBuffer);
     if (!ms) return false;
-    Tracks.add("Vocal-removed (mid−)", makeBuffer(ctx, ms.midRemoved, audioBuffer.sampleRate));
-    Tracks.add("Vocal-isolate (mid+)", makeBuffer(ctx, ms.midOnly, audioBuffer.sampleRate));
+    Tracks.clearDerived("midside");
+    Tracks.add("Vocal-removed (mid−)", makeBuffer(ctx, ms.midRemoved, audioBuffer.sampleRate), "midside");
+    Tracks.add("Vocal-isolate (mid+)", makeBuffer(ctx, ms.midOnly, audioBuffer.sampleRate), "midside");
     return true;
   }
 
@@ -160,7 +168,9 @@
     if (!previewGain) {
       previewGain = ctx.createGain();
       previewGain.gain.value = 1;
-      previewGain.connect(ctx.destination);
+      // route through the player's meter analyser (which passes to destination) so
+      // preview playback is measured by the meter bridge instead of invisible (fix-s1)
+      previewGain.connect(WF.Player && WF.Player.analyser ? WF.Player.analyser : ctx.destination);
     }
     return previewGain;
   }
@@ -199,6 +209,6 @@
     });
   }
 
-  WF.Stems = { hpss, midSide, runHPSS, runMidSide, stopPreview, emergencyStop, Tracks };
+  WF.Stems = { hpss, midSide, runHPSS, runMidSide, stopPreview, emergencyStop, Tracks, previewActive: () => !!previewSrc };
   if ($("quickSplitBoard")) initUI();
 })();

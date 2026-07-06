@@ -26,6 +26,16 @@
     P.gain = P.ctx.createGain(); P.gain.value = 1;
     P.analyser = P.ctx.createAnalyser(); P.analyser.fftSize = 2048;
     P.gain.connect(P.analyser); P.analyser.connect(P.ctx.destination);
+    // honest stereo metering taps (fix-s1): the meter bridge reads true per-channel
+    // peaks and MEASURED correlation from these instead of assuming +1.00
+    if (P.ctx.createChannelSplitter) {
+      P.splitter = P.ctx.createChannelSplitter(2);
+      P.gain.connect(P.splitter);
+      P.analyserL = P.ctx.createAnalyser(); P.analyserL.fftSize = 2048;
+      P.analyserR = P.ctx.createAnalyser(); P.analyserR.fftSize = 2048;
+      P.splitter.connect(P.analyserL, 0);
+      P.splitter.connect(P.analyserR, 1);
+    }
   }
 
   // ---- load / decode / summarize (non-blocking) ----

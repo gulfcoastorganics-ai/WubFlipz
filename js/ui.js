@@ -8,6 +8,10 @@
   const state = WF.state;
   const E = WF.Engine;
   const $ = (id) => document.getElementById(id);
+  // knobs/toggles/wave selectors/octave buttons emit no native input/change event,
+  // so project history+autosave never saw them (AUDIT_REPORT_2026-07-05 finding #7;
+  // fix-s1). projects.js listens for this; its 300ms debounce absorbs drag streams.
+  const emitEdit = () => window.dispatchEvent(new CustomEvent("wf:edit"));
 
   // -------------------------------------------------------------- formatting
   function fmt(param, v) {
@@ -67,7 +71,7 @@
       this.t = Math.min(1, Math.max(0, t));
       state[this.param] = this.value();
       this.render();
-      if (live) { E.onParam(this.param); onKnobSide(this.param); }
+      if (live) { E.onParam(this.param); onKnobSide(this.param); emitEdit(); }
     }
     syncFromState(live) { this.t = this.valToT(state[this.param]); this.render(); if (live) E.onParam(this.param); }
     bind() {
@@ -118,6 +122,7 @@
       b.addEventListener("click", () => {
         state[key] = w; E.onParam(key);
         [...box.children].forEach((c) => c.classList.remove("active")); b.classList.add("active");
+        emitEdit();
       });
       box.appendChild(b);
     });
@@ -134,8 +139,8 @@
     const valEl = $(valId);
     const setDisp = () => { valEl.textContent = (state[key] > 0 ? "+" : "") + state[key]; };
     const upd = () => { setDisp(); if (extra) extra(); };
-    $(dnId).addEventListener("click", () => { state[key] = Math.max(min, state[key] - 1); E.onParam(key); upd(); });
-    $(upId).addEventListener("click", () => { state[key] = Math.min(max, state[key] + 1); E.onParam(key); upd(); });
+    $(dnId).addEventListener("click", () => { state[key] = Math.max(min, state[key] - 1); E.onParam(key); upd(); emitEdit(); });
+    $(upId).addEventListener("click", () => { state[key] = Math.min(max, state[key] + 1); E.onParam(key); upd(); emitEdit(); });
     // init: display only. `extra` (e.g. relabelKeys) must not run before the keyboard
     // is built later in this IIFE — buildKeyboard() labels the keys itself.
     octCtls.push({ key, upd }); setDisp();
@@ -148,7 +153,7 @@
   function bindToggle(id, key, onTxt, offTxt, cb) {
     const el = $(id);
     const upd = () => { el.classList.toggle("on", !!state[key]); el.textContent = state[key] ? onTxt : offTxt; el.setAttribute("aria-pressed", state[key] ? "true" : "false"); };
-    el.addEventListener("click", () => { state[key] = !state[key]; E.onParam(key); upd(); if (cb) cb(); });
+    el.addEventListener("click", () => { state[key] = !state[key]; E.onParam(key); upd(); if (cb) cb(); emitEdit(); });
     toggles.push({ key, upd }); upd();
   }
   bindToggle("wobbleOn", "wobbleOn", "Wobble On", "Wobble Off");
@@ -438,7 +443,8 @@
     [[tx(a), ty(1)], [tx(a + d), ty(s)], [tx(a + d + 0.4), ty(s)]].forEach(([x, y]) => { envx.beginPath(); envx.arc(x, y, 2.4 * dpr, 0, 7); envx.fill(); });
     $("envState").textContent = `${Math.round(a * 1000)}·${Math.round(d * 1000)}·${Math.round(s * 100)}%·${Math.round(r * 1000)}`;
   }
-  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0, meterTimeBuf = null, freqData = null;
+  let idleWalk = 0, clipLatched = false, holdPeak = 0, holdUntil = 0, holdPeakR = 0, holdUntilR = 0,
+    meterTimeBuf = null, meterTimeBufL = null, meterTimeBufR = null, freqData = null;
   const smooth = { rms: 0, peak: 0, lufs: -70, corr: 1, top: 0, sub: 0, out: 0 };
   function resetClip() {
     clipLatched = false;
@@ -447,12 +453,9 @@
   }
   $("clipLed").addEventListener("click", resetClip);
   $("clipReset").addEventListener("click", resetClip);
-  function audioVisualActive() {
-    return E.voiceCount() > 0 ||
-      (WF.Player && WF.Player.playing) ||
-      (WF.Lanes && WF.Lanes.playing) ||
-      (WF.Sequencer && WF.Sequencer.playing);
-  }
+  // Honesty rule (fix-s1): visuals are "active" ONLY when a real analyser frame
+  // exists for the audible source. A path without a meter tap renders as idle —
+  // it is never animated as if it were live.
   function drawIdleNoise(g, W, H, dpr) {
     const amp = 1.5 * dpr, points = 96;
     g.lineWidth = 1.25 * dpr; g.strokeStyle = "rgba(111,228,166,0.30)"; g.shadowBlur = 0;
@@ -467,24 +470,51 @@
   }
   function db(v) { return v > 0 ? 20 * Math.log10(v) : -90; }
   function pctDb(d, min, max) { return Math.max(0, Math.min(1, (d - min) / (max - min))); }
+  function readAnalyser(analyser, sampleRate) {
+    if (!meterTimeBuf || meterTimeBuf.length !== analyser.fftSize) meterTimeBuf = new Float32Array(analyser.fftSize);
+    if (!freqData || freqData.length !== analyser.frequencyBinCount) freqData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getFloatTimeDomainData(meterTimeBuf);
+    analyser.getByteFrequencyData(freqData);
+    return { active: true, time: meterTimeBuf, freq: freqData, sampleRate, mono: true };
+  }
+  function attachStereo(frame, aL, aR) {
+    if (!meterTimeBufL || meterTimeBufL.length !== aL.fftSize) meterTimeBufL = new Float32Array(aL.fftSize);
+    if (!meterTimeBufR || meterTimeBufR.length !== aR.fftSize) meterTimeBufR = new Float32Array(aR.fftSize);
+    aL.getFloatTimeDomainData(meterTimeBufL);
+    aR.getFloatTimeDomainData(meterTimeBufR);
+    frame.timeL = meterTimeBufL; frame.timeR = meterTimeBufR; frame.mono = false;
+    return frame;
+  }
   function activeFrame() {
-    let analyser = null, time = null, freq = null, sampleRate = E.sampleRate || 44100;
+    const sampleRate = E.sampleRate || 44100;
     if (E.started && E.scopeBuffer && E.voiceCount() > 0) {
-      time = E.scopeBuffer; E.getTimeData(time);
-      freq = E.getFreqData ? E.getFreqData(freqData) : null;
+      const time = E.scopeBuffer; E.getTimeData(time);
+      const freq = E.getFreqData ? E.getFreqData(freqData) : null;
       if (freq && freq !== freqData) freqData = freq;
       return { active: true, time, freq, sampleRate, mono: true };
     }
-    if (WF.Player && WF.Player.playing && WF.Player.analyser) {
-      analyser = WF.Player.analyser; sampleRate = WF.Player.ctx ? WF.Player.ctx.sampleRate : sampleRate;
-      if (!meterTimeBuf || meterTimeBuf.length !== analyser.fftSize) meterTimeBuf = new Float32Array(analyser.fftSize);
-      if (!freqData || freqData.length !== analyser.frequencyBinCount) freqData = new Uint8Array(analyser.frequencyBinCount);
-      analyser.getFloatTimeDomainData(meterTimeBuf); analyser.getByteFrequencyData(freqData);
-      return { active: true, time: meterTimeBuf, freq: freqData, sampleRate, mono: true };
+    const P = WF.Player;
+    const previewOn = !!(WF.Stems && WF.Stems.previewActive && WF.Stems.previewActive());
+    if (P && P.analyser && (P.playing || previewOn)) {
+      const f = readAnalyser(P.analyser, P.ctx ? P.ctx.sampleRate : sampleRate);
+      // stereo taps only describe the file-player path, not a mono/preview source
+      if (P.playing && P.analyserL && P.analyserR && P.buffer && P.buffer.numberOfChannels > 1)
+        attachStereo(f, P.analyserL, P.analyserR);
+      return f;
     }
+    const L = WF.Lanes;
+    if (L && L.playing && L.analyser) {
+      const f = readAnalyser(L.analyser, P && P.ctx ? P.ctx.sampleRate : sampleRate);
+      if (L.analyserL && L.analyserR) attachStereo(f, L.analyserL, L.analyserR); // panners make lanes stereo
+      return f;
+    }
+    const S = WF.Sequencer;
+    if (S && S.analyser && (S.playing || (S.voices && S.voices.size > 0)))
+      return readAnalyser(S.analyser, S.ctx ? S.ctx.sampleRate : sampleRate);
     return { active: false, time: null, freq: null, sampleRate, mono: true };
   }
-  function calcMetrics(time, gr) {
+  function calcMetrics(frame, gr) {
+    const time = frame ? frame.time : null;
     let peak = 0, sum = 0;
     if (time) for (let i = 0; i < time.length; i++) { const v = time[i]; peak = Math.max(peak, Math.abs(v)); sum += v * v; }
     const rms = time ? Math.sqrt(sum / time.length) : 0;
@@ -495,26 +525,51 @@
     smooth.rms += (rms - smooth.rms) * a;
     smooth.peak += (peak - smooth.peak) * 0.35;
     smooth.lufs += (lufs - smooth.lufs) * 0.12;
-    smooth.corr += (1 - smooth.corr) * 0.18; // mono measured bus: L/R are identical, so correlation is honestly +1.
+    // correlation is MEASURED from per-channel taps when the source is stereo;
+    // mono sources report corr:null and the meter shows "mono" instead of a fake
+    // confident +1.00 (fix-s1)
+    let peakL = 0, peakR = 0, corr = null;
+    if (frame && frame.timeL && frame.timeR) {
+      const Lb = frame.timeL, Rb = frame.timeR, n = Math.min(Lb.length, Rb.length);
+      let lr = 0, ll = 0, rr = 0;
+      for (let i = 0; i < n; i++) {
+        const l = Lb[i], r = Rb[i];
+        if (Math.abs(l) > peakL) peakL = Math.abs(l);
+        if (Math.abs(r) > peakR) peakR = Math.abs(r);
+        lr += l * r; ll += l * l; rr += r * r;
+      }
+      const den = Math.sqrt(ll * rr);
+      corr = den > 1e-9 ? lr / den : 0;
+      smooth.corr += (corr - smooth.corr) * 0.25;
+    }
     smooth.top += ((Math.abs(gr.top) || 0) - smooth.top) * 0.25;
     smooth.sub += ((Math.abs(gr.sub) || 0) - smooth.sub) * 0.25;
     smooth.out += ((Math.abs(gr.out) || 0) - smooth.out) * 0.25;
-    return { peak, rms, lufs };
+    return { peak, rms, lufs, peakL, peakR, corr };
   }
   function setBar(id, amount) { $(id).style.width = `${(Math.max(0, Math.min(1, amount)) * 100).toFixed(1)}%`; }
-  function drawMeters(ts, time, gr) {
+  function drawMeters(ts, frame, gr) {
     $("hdrFps").textContent = WF.Viz && WF.Viz.fps ? Math.round(WF.Viz.fps) : "--";
     if (E._onVoices) $("hdrVoices").textContent = `${E.voiceCount()}/${E.MAX_VOICES}`;
-    const m = calcMetrics(time, gr);
-    const outputPeak = E.getOutputPeak && E.voiceCount() > 0 ? E.getOutputPeak().mono : m.peak;
-    const v = Math.max(0, Math.min(1, outputPeak || 0));
-    $("meterL").style.width = `${(v * 100).toFixed(1)}%`;
-    $("meterR").style.width = `${(v * 100).toFixed(1)}%`;
-    if (v >= holdPeak || ts > holdUntil) { holdPeak = v; holdUntil = ts + 1000; }
-    else if (ts > holdUntil - 1000) holdPeak = Math.max(v, holdPeak - 0.006);
+    const m = calcMetrics(frame, gr);
+    const stereo = !!(frame && frame.timeL && frame.timeR);
+    // mono source -> single honest rail; stereo source -> true independent L/R (fix-s1)
+    const railR = $("railR");
+    if (railR) railR.style.display = stereo ? "" : "none";
+    const synthPeak = E.getOutputPeak && E.voiceCount() > 0 ? E.getOutputPeak().mono : null;
+    const vL = Math.max(0, Math.min(1, (stereo ? m.peakL : (synthPeak != null ? synthPeak : m.peak)) || 0));
+    const vR = Math.max(0, Math.min(1, stereo ? m.peakR || 0 : 0));
+    $("meterL").style.width = `${(vL * 100).toFixed(1)}%`;
+    if (stereo) $("meterR").style.width = `${(vR * 100).toFixed(1)}%`;
+    if (vL >= holdPeak || ts > holdUntil) { holdPeak = vL; holdUntil = ts + 1000; }
+    else if (ts > holdUntil - 1000) holdPeak = Math.max(vL, holdPeak - 0.006);
     $("holdL").style.left = `${(holdPeak * 100).toFixed(1)}%`;
-    $("holdR").style.left = `${(holdPeak * 100).toFixed(1)}%`;
-    if (v >= Math.pow(10, -0.1 / 20)) {
+    if (stereo) {
+      if (vR >= holdPeakR || ts > holdUntilR) { holdPeakR = vR; holdUntilR = ts + 1000; }
+      else if (ts > holdUntilR - 1000) holdPeakR = Math.max(vR, holdPeakR - 0.006);
+      $("holdR").style.left = `${(holdPeakR * 100).toFixed(1)}%`;
+    }
+    if (Math.max(vL, vR) >= Math.pow(10, -0.1 / 20)) {
       clipLatched = true;
       $("clipLed").classList.add("clipped");
       $("clipLed").setAttribute("aria-pressed", "true");
@@ -523,12 +578,18 @@
     setBar("rmsBar", pctDb(db(smooth.rms), -60, 0));
     setBar("peakBar", pctDb(db(smooth.peak), -60, 0));
     setBar("lufsBar", pctDb(smooth.lufs, -60, 0));
-    $("corrBar").style.width = `${((smooth.corr + 1) * 50).toFixed(1)}%`;
     setBar("grTopBar", Math.min(1, smooth.top / 18)); setBar("grSubBar", Math.min(1, smooth.sub / 18)); setBar("grOutBar", Math.min(1, smooth.out / 18));
     $("rmsReadout").textContent = `${db(smooth.rms).toFixed(1)} dB`;
     $("peakReadout").textContent = `${db(smooth.peak).toFixed(1)} dB`;
     $("lufsReadout").textContent = `${smooth.lufs.toFixed(1)}`;
-    $("corrReadout").textContent = `${smooth.corr >= 0 ? "+" : ""}${smooth.corr.toFixed(2)}`;
+    if (m.corr === null) {
+      // mono end-to-end (or no source): correlation is meaningless — say so
+      $("corrBar").style.width = "0%";
+      $("corrReadout").textContent = "mono";
+    } else {
+      $("corrBar").style.width = `${((smooth.corr + 1) * 50).toFixed(1)}%`;
+      $("corrReadout").textContent = `${smooth.corr >= 0 ? "+" : ""}${smooth.corr.toFixed(2)}`;
+    }
     $("grTopReadout").textContent = smooth.top.toFixed(1);
     $("grSubReadout").textContent = smooth.sub.toFixed(1);
     $("grOutReadout").textContent = smooth.out.toFixed(1);
@@ -546,17 +607,29 @@
       spectrumX.fillRect(i * bw + 1, H - h, Math.max(1, bw - 2), h);
     }
   }
-  function drawPhase(time, active) {
+  function drawPhase(frame, active) {
     const dpr = sizeCanvas(phaseCv), W = phaseCv.width, H = phaseCv.height, cx = W / 2, cy = H / 2, r = Math.min(W, H) * 0.42;
     phaseX.clearRect(0, 0, W, H);
     phaseX.strokeStyle = "rgba(245,225,190,.10)"; phaseX.lineWidth = 1 * dpr;
     phaseX.beginPath(); phaseX.arc(cx, cy, r, 0, Math.PI * 2); phaseX.moveTo(cx - r, cy); phaseX.lineTo(cx + r, cy); phaseX.moveTo(cx, cy - r); phaseX.lineTo(cx, cy + r); phaseX.stroke();
     phaseX.strokeStyle = active ? "rgba(111,228,166,.78)" : "rgba(111,228,166,.25)"; phaseX.lineWidth = 1.4 * dpr; phaseX.beginPath();
-    const n = time ? Math.min(512, time.length) : 96;
+    const stereo = !!(frame && frame.timeL && frame.timeR && active);
+    const time = frame ? frame.time : null;
+    const n = stereo ? Math.min(512, frame.timeL.length) : time ? Math.min(512, time.length) : 96;
     for (let i = 0; i < n; i++) {
-      const v = time ? time[Math.floor((i / n) * time.length)] : Math.sin(i * 0.18 + performance.now() * 0.001) * 0.03;
-      const x = cx + v * r;
-      const y = cy - v * r; // mono bus draws a stable diagonal phase line.
+      let x, y;
+      if (stereo) {
+        // true goniometer from the measured channels: mid vertical, side horizontal
+        const l = frame.timeL[Math.floor((i / n) * frame.timeL.length)];
+        const rv = frame.timeR[Math.floor((i / n) * frame.timeR.length)];
+        x = cx + (rv - l) * 0.7071 * r;
+        y = cy - (l + rv) * 0.7071 * r;
+      } else {
+        // mono bus draws a stable diagonal; with no source, a dim idle wiggle
+        const v = time && active ? time[Math.floor((i / n) * time.length)] : Math.sin(i * 0.18 + performance.now() * 0.001) * 0.03;
+        x = cx + v * r;
+        y = cy - v * r;
+      }
       i === 0 ? phaseX.moveTo(x, y) : phaseX.lineTo(x, y);
     }
     phaseX.stroke();
@@ -566,7 +639,7 @@
     scx.clearRect(0, 0, W, H);
     scx.strokeStyle = "rgba(111,228,166,0.10)"; scx.lineWidth = 1 * dpr;
     scx.beginPath(); scx.moveTo(0, H / 2); scx.lineTo(W, H / 2); scx.stroke();
-    const active = frame.active || audioVisualActive();
+    const active = frame.active; // only a real measured frame counts as live (fix-s1)
     const buf = frame.time;
     if (buf && active) {
       let start = 0; for (let i = 1; i < buf.length / 2; i++) { if (buf[i - 1] < 0 && buf[i] >= 0) { start = i; break; } }
@@ -578,7 +651,7 @@
     } else if (!active) drawIdleNoise(scx, W, H, dpr);
     const gr = E.getReduction ? E.getReduction() : { top: 0, sub: 0, out: 0 };
     $("compGR").textContent = `${gr.top.toFixed(1)} / ${gr.sub.toFixed(1)} / ${gr.out.toFixed(1)} dB`;
-    drawSpectrum(frame.freq, active); drawPhase(buf, active); drawMeters(ts || performance.now(), buf, gr);
+    drawSpectrum(frame.freq, active); drawPhase(frame, active); drawMeters(ts || performance.now(), frame, gr);
   }
   drawEnv();
   if (WF.Viz) WF.Viz.register("synth-scope-meters", (ts) => drawScope(ts, activeFrame()));

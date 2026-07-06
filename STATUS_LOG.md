@@ -5,6 +5,100 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-05 — FIX S1: stability & honesty fixes (from AUDIT_REPORT_2026-07-05)
+
+Six audit findings fixed, each reproduced at runtime BEFORE the fix and re-verified
+after, under a Node DOM+WebAudio harness (Chromium still exits 133 in this container).
+Full regression suite: 17/17 checks pass, clean boot with zero console errors, all
+JS passes `node --check`, DOM-id cross-check passes, rAF ownership still vizloop-only,
+site serves 200.
+
+**1. Unbounded stem buffers (audit #2) — stems.js.**
+Reproduced: 3 repeat HPSS+Mid/Side runs grew `WF.Tracks` 4→8→12 full-length buffers.
+Fix: each split family now replaces its own previous pair (`Tracks.clearDerived(kind)`,
+tracks tagged `hpss`/`midside`), cleared only after a successful run so a failed run
+keeps old stems. HPSS + Mid/Side still coexist → hard cap of 4 derived tracks.
+Re-verified: 3 repeat runs hold at exactly 4 tracks / constant bytes.
+
+**2. Snapshot growth + silent storage failure (audit #1) — projects.js.**
+Runtime repro found the audit's mechanism was PARTLY WRONG, and the truth was worse:
+`LS_ACTIVE` was written with raw `setItem(id)` but read through `JSON.parse`, which
+always threw → active-id always read as "" → every Save/Snapshot minted a NEW project
+id and unshifted a duplicate project entry (measured: 1 duplicate entry per save,
+unbounded), snapshots never attached to the active project, and the audit's predicted
+exponential snapshot nesting was latent (defused by the same bug — it would have
+activated the moment the id read was fixed alone). Fixes, together: raw-read
+`activeId()` helper (project identity stable); `captureProject()` no longer embeds the
+snapshot list at all (kills the recursion at the root — snapshot states are flat);
+`saveProject()` preserves the stored entry's snapshots; history capped at 20 with
+oldest-eviction (existing cap, now actually exercised); every storage write failure now
+surfaces as `console.error` + a `#projectStatus` message instead of vanishing.
+Re-verified: 25 snapshots → 1 project entry, 20 flat capped snapshots, ~1.3 KB linear
+growth per snapshot, zero nesting; forced quota failure shows
+"snapshot save FAILED — storage full?" + console.error (was "snapshot saved" + silence).
+
+**3. NaN BPM injection (audit #3) — sequencer.js.**
+Reproduced: clearing the seq BPM field in Sync mode set `WF.state.bpm = NaN` and
+`wobbleHz() = NaN` (throws in `setTargetAtTime` on a live graph). Note: the scheduler
+itself was partly protected (`stepDur`'s `bpm || 140` catches NaN) — the wobble math
+and shared state were the real casualties. Fix: `setBpm` ignores non-finite input and
+keeps the last good BPM. Re-verified: clear → 140 retained; "175" → applied; "abc" →
+175 retained.
+
+**4. outCeiling vs FIX 1 contradiction (audit #4) — resolved: KEEP + correct the docs.**
+Graph truth: `sumBus → master → outCeiling → analyser → destination` — outCeiling IS a
+shared DynamicsCompressor on the merged bus, so FIX 1's "no single brickwall on the
+merged bus" was false from BUGFIX A onward (FIX 1 entry now carries a correction note).
+No live audio here, so the pumping question was answered the same way FIX 1 was: a
+numerical model of the actual chain (topLimiter −12/8 + subCeiling −6/6 + outCeiling
+−1/20, WebAudio-style fixed makeup gain included, worst-case in-phase peak summation).
+Results: outCeiling GR swings at the wobble rate ~1.2 dB near default levels and
+~3–4 dB at max crank — BUT in every case where it engages, the summed peak is above
+−1 dBFS, i.e. the alternative is hard digital clipping of the merged bus, which no
+per-bus stage can prevent and which distorts both buses worse than bounded ducking.
+Per-bus ceilings already exist; a post-sum gain element that affects only one bus is
+not physically possible. Decision: outCeiling stays as clip safety. Two doc corrections:
+(a) FIX 1 annotated; (b) BUGFIX A's "reads 0.0 dB at normal levels" is an overclaim
+under worst-case peak alignment — the in-app "GR OUT" meter is the runtime tripwire and
+a by-ear check is queued (if GR OUT moves at performance levels, back `master` off; a
+listening session may retune per-bus ceilings for guaranteed sum headroom — NOT done
+blind here, since it changes every preset's sound). Model caveat: in-phase summation is
+pessimistic; real GR will sit between 0 and the modeled values. engine.js's header
+diagram now shows outCeiling.
+
+**5. Honest meters (audit #5/#6 + L/R note) — ui.js, fileplayer.js, lanes.js,
+sequencer.js, stems.js, index.html.**
+Reproduced: sequencer playing → phase scope drawn at full "active" brightness from
+synthetic data, RMS stuck at −90 dB, spectrum empty; stereo anti-phase playback →
+CORR "+1.00" (truth: −1.00). Fixes: real analyser taps added on every audible context
+(lanes master, sequencer limiter, and stereo ChannelSplitter taps on the file player
+and lanes); Quick Split preview now routes through the player's meter analyser so it is
+measured; `activeFrame()` covers synth → player/preview → lanes → sequencer and visuals
+are "active" ONLY when a real measured frame exists (`audioVisualActive()` removed);
+correlation is now MEASURED from L/R taps for stereo sources and reads "mono" for
+mono-end-to-end sources instead of a fake confident +1.00; phase scope draws a true
+goniometer from measured L/R for stereo, keeps the honest mono diagonal otherwise;
+header meter shows true independent L/R for stereo sources and collapses to a single
+honest rail for mono (right rail hidden, no duplicated fake channel). Idle state keeps
+the documented subdued canvas motion, with meters silent and phase dim. Re-verified:
+playing sequencer w/ injected 0.5-amp sine → RMS −9.0 dB (exact), phase active with
+real data, 48/48 real spectrum bars; stereo L=−R → CORR −1.00, both rails independent;
+all-stopped → dim/idle, "mono".
+
+**6. Autosave/undo event gap (audit #7) — ui.js, sequencer.js, projects.js.**
+Reproduced: a fresh session of knob arrows/drag, toggle, wave-selector, octave, and
+grid-cell edits (state verifiably changed) produced NO autosave and NO undo history;
+a text-field control edit did. Fix: those eventless edit paths dispatch a `wf:edit`
+CustomEvent; projects.js listens and routes it into the existing debounced
+history+autosave (300 ms debounce absorbs drag streams). Re-verified: the same pure
+knob/toggle/grid session now yields autosave + undo.
+
+Out of scope, intentionally untouched: other open audit findings (#8 scheduler burst,
+#9 innerHTML injection, #10-#21) remain in AUDIT_REPORT/AUDIT_QUEUE. No refactors
+beyond the six fixes.
+
+---
+
 ## 2026-07-05 — WUBFLIPZ PHASE 4: project/workspace management
 
 Added DAW-style workflow management without changing DSP.
@@ -325,6 +419,10 @@ New modules: `js/waveform.js` (reusable peak summaries + draw) and `js/fileplaye
   **0.0 dB** at normal levels and only engages on genuine overs — never an active
   dynamics stage on the merged bus. Also resolves the "no brickwall on merged bus"
   clip-risk I flagged in Fix 1. Meter now shows "Comp GR top/sub/out". → AUDIT_QUEUE (EARS).
+  **[NOTE 2026-07-05, FIX S1: "reads 0.0 dB at normal levels" is an overclaim under
+  worst-case in-phase peak alignment — modeling shows it can engage ~1 dB near defaults
+  and ~3–4 dB at max crank, always only where the sum would otherwise hard-clip. Kept
+  as clip safety; watch "GR OUT" by ear. Details in the FIX S1 entry.]**
 
 **BUGFIX B — on-screen keyboard not rendering.** Root cause was NOT keyboard-specific:
 a **temporal-dead-zone crash**. `bindOctave("octave", …, () => relabelKeys())` (ui.js)
@@ -378,6 +476,10 @@ UI IIFE, so `buildKeyboard()` (and toggles/BPM/presets/power/canvases after it) 
   limiter would re-introduce the exact pumping). Each path is limited individually and
   summed pre-master. At defaults the summed peak is well under 0 dBFS, but if you crank
   `subLevel` + `master` together, watch for clipping and back `master` off.
+  **[CORRECTED 2026-07-05, FIX S1: this stopped being true one entry later — BUGFIX A
+  added `outCeiling` (thr −1 dB, ratio 20) as a clip-safety brickwall on the merged
+  bus, so a shared dynamics stage DOES exist there again. See the FIX S1 entry for the
+  measured pumping analysis and why it stays.]**
 
 **Status: NOT self-certified. Needs a listening test** — play a heavy Wobble+Growl
 preset on a low note and confirm the sub sits rock-steady under the wobble while watching

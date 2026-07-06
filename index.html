@@ -28,7 +28,8 @@
         </div>
         <div class="out-meter" aria-label="Output peak meter">
           <div class="meter-rail"><span id="meterL"></span><i id="holdL"></i></div>
-          <div class="meter-rail"><span id="meterR"></span><i id="holdR"></i></div>
+          <!-- right rail only shown when the measured source is genuinely stereo (fix-s1) -->
+          <div class="meter-rail" id="railR" style="display:none"><span id="meterR"></span><i id="holdR"></i></div>
           <button class="clip-led" id="clipLed" type="button" aria-pressed="false" title="Click to reset clip light">CLIP</button>
         </div>
         <span class="led" id="led"></span>
@@ -181,7 +182,7 @@
             <div class="viz-meter"><span>RMS</span><i><b id="rmsBar"></b></i><em id="rmsReadout">-∞ dB</em></div>
             <div class="viz-meter"><span>PEAK</span><i><b id="peakBar"></b></i><em id="peakReadout">-∞ dB</em></div>
             <div class="viz-meter"><span>LUFS-M</span><i><b id="lufsBar"></b></i><em id="lufsReadout">-∞</em></div>
-            <div class="viz-meter"><span>CORR</span><i class="centered"><b id="corrBar"></b></i><em id="corrReadout">+1.00</em></div>
+            <div class="viz-meter"><span>CORR</span><i class="centered"><b id="corrBar"></b></i><em id="corrReadout">mono</em></div>
             <div class="viz-meter"><span>GR TOP</span><i><b id="grTopBar"></b></i><em id="grTopReadout">0.0</em></div>
             <div class="viz-meter"><span>GR SUB</span><i><b id="grSubBar"></b></i><em id="grSubReadout">0.0</em></div>
             <div class="viz-meter"><span>GR OUT</span><i><b id="grOutBar"></b></i><em id="grOutReadout">0.0</em></div>

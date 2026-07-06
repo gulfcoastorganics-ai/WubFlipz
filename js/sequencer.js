@@ -17,7 +17,7 @@
   }
 
   const S = {
-    ctx: null, master: null, limiter: null, noise: null,
+    ctx: null, master: null, limiter: null, noise: null, analyser: null,
     playing: false, timer: 0, currentStep: 0, nextStep: 0, nextTime: 0,
     bpm: 140, sync: true,
     pattern: defaultPattern(),
@@ -40,6 +40,9 @@
     S.limiter.threshold.value = -6; S.limiter.knee.value = 6; S.limiter.ratio.value = 8;
     S.limiter.attack.value = 0.002; S.limiter.release.value = 0.08;
     S.master.connect(S.limiter); S.limiter.connect(S.ctx.destination);
+    // meter tap (fix-s1): drum playback is measured by the meter bridge
+    S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 2048;
+    S.limiter.connect(S.analyser);
     makeNoise();
   }
 
@@ -169,7 +172,12 @@
     if (input) input.value = Math.round(activeBpm());
   }
   function setBpm(v, writeShared) {
-    v = clamp(parseFloat(v), 40, 300);
+    v = parseFloat(v);
+    // Empty/garbage input must never reach shared state: NaN here wedged
+    // WF.state.bpm and the wobble-rate math until a valid BPM was retyped
+    // (AUDIT_REPORT_2026-07-05 finding #3; fix-s1). Keep the last good BPM.
+    if (!isFinite(v)) return;
+    v = clamp(v, 40, 300);
     if (S.sync) {
       if (WF.state) WF.state.bpm = v;
       const synth = $("bpm");
@@ -185,7 +193,10 @@
       const label = document.createElement("div"); label.className = "seq-label"; label.textContent = pad.name; g.appendChild(label);
       for (let c = 0; c < STEPS; c++) {
         const cell = document.createElement("button"); cell.type = "button"; cell.className = "seq-cell"; cell.dataset.row = r; cell.dataset.step = c; cell.setAttribute("aria-label", `${pad.name} step ${c + 1}`);
-        cell.addEventListener("click", () => { S.pattern[r][c] = !S.pattern[r][c]; cell.classList.toggle("on", S.pattern[r][c]); });
+        cell.addEventListener("click", () => {
+          S.pattern[r][c] = !S.pattern[r][c]; cell.classList.toggle("on", S.pattern[r][c]);
+          window.dispatchEvent(new CustomEvent("wf:edit")); // grid edits reach history/autosave (fix-s1)
+        });
         g.appendChild(cell);
       }
     });
@@ -262,7 +273,7 @@
     buildGrid(); buildPads(); setSync(S.sync);
     $("seqPlay").addEventListener("click", () => S.playing ? pause() : play());
     $("seqStop").addEventListener("click", stop);
-    $("seqSync").addEventListener("click", () => setSync(!S.sync));
+    $("seqSync").addEventListener("click", () => { setSync(!S.sync); window.dispatchEvent(new CustomEvent("wf:edit")); });
     $("seqBpm").addEventListener("input", (e) => setBpm(e.target.value, true));
     const synth = $("bpm");
     if (synth) synth.addEventListener("input", () => { if (S.sync) setBpm(synth.value, false); });

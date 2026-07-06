@@ -9,6 +9,52 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## FIX S1 — 2026-07-05 audit findings resolution (headless runtime verification)
+
+Fixed and verified under the Node DOM+WebAudio harness (each bug reproduced failing
+BEFORE the fix, then re-run passing after; 17/17 regression suite green):
+
+- [x] **AUDIT #2 — unbounded stem buffers.** Verified: 3 repeat HPSS+Mid/Side runs held
+      `WF.Tracks` at exactly 4 derived tracks / constant bytes (pre-fix: 4→8→12).
+- [x] **AUDIT #1 — snapshot growth + silent storage failure.** Verified: 25 snapshots →
+      1 project entry, flat capped-at-20 history, ~1.3 KB linear growth per snapshot;
+      forced quota failure now shows a status message + console.error (pre-fix:
+      duplicate project entry per save, "snapshot saved" shown while nothing persisted).
+- [x] **AUDIT #3 — NaN BPM injection.** Verified: clearing the seq BPM field in Sync
+      keeps `WF.state.bpm`/`wobbleHz()` finite; "abc" input also ignored; valid input
+      still applies (pre-fix: both went NaN).
+- [x] **AUDIT #4 — outCeiling contradiction.** Resolved as KEEP + correct docs: it is a
+      −1 dB clip-safety brickwall that only engages where the merged bus would otherwise
+      hard-clip (numerically modeled, same method as FIX 1); FIX 1 and BUGFIX A entries
+      annotated. Verified: engine.js header diagram matches the real graph.
+- [x] **AUDIT #5/#6 — fake-active visuals + hardcoded correlation + duplicated L/R.**
+      Verified: sequencer playback with injected 0.5-amp sine reads RMS −9.0 dB (exact)
+      with real spectrum/phase; stereo L=−R playback reads CORR −1.00 measured; mono
+      sources read "mono" with a single honest rail; all-stopped renders dim/idle.
+- [x] **AUDIT #7 — autosave/undo missing knob/toggle/grid edits.** Verified: a fresh
+      session of knob/toggle/wave/octave/grid edits (no text input) now produces an
+      autosave entry + available undo (pre-fix: neither, despite real state changes).
+
+**Discovered during S1 (fixed as the root cause of AUDIT #1):** `LS_ACTIVE` was written
+with raw `setItem` but read via `JSON.parse` → active-project id always read as "" →
+duplicate project entry per save, snapshots never attached to the active project, and
+the audit's predicted exponential nesting was latent behind it. Fixed together with #1
+(raw-read `activeId()`), since fixing either alone would have made things worse.
+
+New by-ear items from S1:
+
+- [ ] (EARS) **outCeiling GR at performance levels** — play heavy Wobble+Growl on a low
+      note at YOUR real levels and watch "GR OUT": it should sit at 0.0. If it moves,
+      back `master` off; if it moves at levels you actually want, schedule a listening
+      session to retune per-bus ceilings for guaranteed sum headroom (not done blind).
+- [ ] (EARS/EYES) **Honest meter bridge in a real browser** — Lanes and Sequencer
+      playback must drive real scope/spectrum/meters (no idle animation while audible);
+      a stereo file shows measured CORR and independent L/R rails; a mono source shows
+      one rail + "mono"; Quick Split preview registers on the meters.
+- [ ] (EYES) **Undo/autosave coverage feel** — knob drags now push debounced history;
+      confirm undo granularity feels right (one undo step per ~settled edit, not per
+      pixel of drag).
+
 ## Bugfixes
 
 - [x] (EARS) **Emergency Stop / Stop leak** — with a sample loaded, a Quick Split preview

@@ -27,7 +27,17 @@
   }
   function write(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); return true; }
-    catch (e) { return false; }
+    catch (e) {
+      // storage failures must never be silent (fix-s1): callers also surface via status()
+      console.error("wubflipz: storage write failed for", key, "—", e && e.name ? e.name : e);
+      return false;
+    }
+  }
+  // LS_ACTIVE holds a bare id string written with raw setItem; reading it through
+  // read()/JSON.parse always threw and returned "", which minted a fresh project id
+  // on every capture — the real cause of unbounded project-list growth (fix-s1).
+  function activeId() {
+    try { return localStorage.getItem(LS_ACTIVE) || ""; } catch (e) { return ""; }
   }
   function nowIso() { return new Date().toISOString(); }
   function id(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`; }
@@ -119,20 +129,23 @@
   function captureProject(name) {
     const meta = metadataFromUI();
     if (name) meta.name = name;
+    // Captured state deliberately contains NO snapshot list: snapshots live only on
+    // the stored project entry. Embedding them here made every snapshot's state
+    // include all prior snapshots recursively — exponential serialized growth
+    // (AUDIT_REPORT_2026-07-05 finding #1; fix-s1).
     return {
       app: "wubflipz",
       version: 1,
-      id: read(LS_ACTIVE, "") || id("project"),
+      id: activeId() || id("project"),
       savedAt: nowIso(),
       metadata: meta,
       preset: WF.Presets && WF.Presets.capture ? WF.Presets.capture(meta.name) : null,
       layout: captureLayout(),
       samples: sampleManifest(),
-      snapshots: currentProjectSnapshots(),
     };
   }
   function currentProjectSnapshots() {
-    const active = read(LS_ACTIVE, "");
+    const active = activeId();
     const p = projects().find((x) => x.id === active);
     return p && Array.isArray(p.snapshots) ? p.snapshots : [];
   }
@@ -155,8 +168,11 @@
     const p = captureProject();
     const list = projects();
     const i = list.findIndex((x) => x.id === p.id);
+    // snapshots are preserved from the stored entry (captured state excludes them)
+    p.snapshots = i >= 0 && Array.isArray(list[i].snapshots) ? list[i].snapshots : [];
     if (i >= 0) list[i] = p; else list.unshift(p);
-    saveProjects(list); localStorage.setItem(LS_ACTIVE, p.id); markRecent(p.id);
+    if (!saveProjects(list)) { status("project save FAILED — storage full?"); return p; }
+    localStorage.setItem(LS_ACTIVE, p.id); markRecent(p.id);
     renderAll(); status("project saved");
     return p;
   }
@@ -171,8 +187,9 @@
     const list = projects();
     const i = list.findIndex((x) => x.id === p.id);
     if (i >= 0) {
+      // flat, capped history: independent entries, oldest evicted past 20 (fix-s1)
       list[i].snapshots = [snap].concat(list[i].snapshots || []).slice(0, 20);
-      saveProjects(list);
+      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); return; }
     }
     renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved");
   }
@@ -209,8 +226,8 @@
     saveTimer = setTimeout(() => {
       const p = captureProject();
       p.autosavedAt = nowIso();
-      write(LS_AUTOSAVE, p);
-      status(`autosaved ${new Date().toLocaleTimeString()}`);
+      if (write(LS_AUTOSAVE, p)) status(`autosaved ${new Date().toLocaleTimeString()}`);
+      else status("autosave FAILED — storage full?");
     }, 1200);
   }
   function scheduleHistory(reason) {
@@ -225,7 +242,7 @@
   }
   function renderProjects() {
     const list = projects();
-    const active = read(LS_ACTIVE, "");
+    const active = activeId();
     const sel = $("projectList"); sel.innerHTML = "";
     list.forEach((p) => {
       const o = document.createElement("option");
@@ -314,6 +331,9 @@
     ["projectName","projectAuthor","projectGenre","projectKey","projectBpm","projectNotes"].forEach((id) => $(id).addEventListener("input", () => scheduleHistory("metadata")));
     document.addEventListener("input", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory("edit"); }, true);
     document.addEventListener("change", (e) => { if (!e.target.closest("#projectBoard")) scheduleHistory("change"); }, true);
+    // knobs, toggles, wave selectors, octave buttons, and sequencer grid cells emit
+    // no native input/change; they announce edits via this custom event (fix-s1)
+    window.addEventListener("wf:edit", () => scheduleHistory("edit"));
     window.addEventListener("beforeunload", () => write(LS_AUTOSAVE, Object.assign(captureProject(), { autosavedAt: nowIso() })));
     if (WF.Player && WF.Player.onLoaded) WF.Player.onLoaded.push(() => { renderSamples(); scheduleHistory("sample"); scheduleAutosave(); });
   }

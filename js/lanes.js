@@ -11,7 +11,8 @@
   const fmt = (t) => { t = Math.max(0, t | 0); return `${(t / 60) | 0}:${String(t % 60).padStart(2, "0")}`; };
 
   const L = {
-    lanes: [], master: null, playing: false, startTime: 0, offset: 0,
+    lanes: [], master: null, analyser: null, analyserL: null, analyserR: null,
+    playing: false, startTime: 0, offset: 0,
     settings: new Map(), // track.id -> {vol,pan,mute,solo}
   };
   WF.Lanes = L;
@@ -19,7 +20,18 @@
   function ctx() { return WF.Player && WF.Player.ctx; }
   function ensureMaster() {
     const c = ctx(); if (!c) return null;
-    if (!L.master) { L.master = c.createGain(); L.master.gain.value = 1; L.master.connect(c.destination); }
+    if (!L.master) {
+      L.master = c.createGain(); L.master.gain.value = 1; L.master.connect(c.destination);
+      // meter taps (fix-s1): lanes playback is measured, not shown as idle/fake
+      L.analyser = c.createAnalyser(); L.analyser.fftSize = 2048; L.master.connect(L.analyser);
+      if (c.createChannelSplitter) {
+        const sp = c.createChannelSplitter(2);
+        L.master.connect(sp);
+        L.analyserL = c.createAnalyser(); L.analyserL.fftSize = 2048;
+        L.analyserR = c.createAnalyser(); L.analyserR.fftSize = 2048;
+        sp.connect(L.analyserL, 0); sp.connect(L.analyserR, 1);
+      }
+    }
     return L.master;
   }
   function maxDur() { return L.lanes.reduce((m, l) => Math.max(m, l.track.buffer.duration), 0.0001); }

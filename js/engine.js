@@ -5,10 +5,13 @@
  * Signal path (top layer and sub are compressed SEPARATELY, merged post-comp):
  *   per voice: oscA \
  *              oscB  > mix -> VCA(ADSR) -> [ modFilter ] -> preBus -> shaper(drive) -> topLimiter --\
- *                                                                                                    > sumBus -> master -> analyser -> out
+ *                                                                                                    > sumBus -> master -> outCeiling -> analyser -> out
  *              subOsc -> subVCA(ADSR) -> subBus -> subCeiling ------------------------------------- /
- *   (sub bypasses the modulated filter, the shared shaper, AND the top limiter, so a
- *    wobbling top layer can no longer duck it via a shared dynamics stage.)
+ *   (sub bypasses the modulated filter, the shared shaper, AND the top limiter. The ONE
+ *    shared dynamics stage is outCeiling: a -1 dB clip-safety brickwall on the merged
+ *    bus. Where it engages, the alternative is hard digital clipping of the sum, which
+ *    no per-bus stage can prevent. Watch the "GR OUT" meter: it should sit at 0.0 at
+ *    performance levels — if it moves, back master off. See STATUS_LOG "FIX S1".)
  *
  * Modulation:
  *   wobbleLFO -> wobbleDepth ------------------> modFilter.detune  (tempo-synced, cents)
