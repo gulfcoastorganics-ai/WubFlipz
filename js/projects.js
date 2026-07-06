@@ -55,7 +55,12 @@
     if (el) el.textContent = msg;
     window.dispatchEvent(new CustomEvent("wf:workflow-update"));
   }
-  function toast(msg) { window.dispatchEvent(new CustomEvent("wf:toast", { detail: { message: msg } })); }
+  function toast(msg, detail, tone) {
+    window.dispatchEvent(new CustomEvent("wf:toast", { detail: { message: msg, detail, tone } }));
+  }
+  function workflowStatus(title, detail, tone) {
+    window.dispatchEvent(new CustomEvent("wf:status", { detail: { title, detail, tone } }));
+  }
   function autosaveState(label, detail, tone) {
     const el = $("autosaveStatus");
     if (!el) return;
@@ -189,7 +194,8 @@
       renderAll();
       if (!opts || !opts.noHistory) pushHistory("load");
       status(`loaded ${project.metadata && project.metadata.name ? project.metadata.name : "project"}`);
-      toast(`Loaded: ${project.metadata && project.metadata.name ? project.metadata.name : "Project"}`);
+      window.dispatchEvent(new CustomEvent("wf:dirty-clear", { detail: { scope: "all" } }));
+      toast(`Session Loaded`, `${project.metadata && project.metadata.name ? project.metadata.name : "Project"} restored.`);
       return true;
     } finally { applying = false; }
   }
@@ -200,15 +206,21 @@
     // snapshots are preserved from the stored entry (captured state excludes them)
     p.snapshots = i >= 0 && Array.isArray(list[i].snapshots) ? list[i].snapshots : [];
     if (i >= 0) list[i] = p; else list.unshift(p);
-    if (!saveProjects(list)) { status("project save FAILED — storage full?"); autosaveState("Storage Full", "Project save failed", "fail"); return p; }
+    if (!saveProjects(list)) {
+      status("project save FAILED — storage full?"); autosaveState("Storage Full", "Project save failed", "fail");
+      toast("Session Save Failed", "Project saves this session. Storage may be full.", "fail");
+      return p;
+    }
     localStorage.setItem(LS_ACTIVE, p.id); markRecent(p.id);
-    renderAll(); status("project saved"); autosaveState("Saved", timeLabel(), "ok"); toast("Project saved");
+    renderAll(); status("project saved"); autosaveState("Saved", timeLabel(), "ok");
+    window.dispatchEvent(new CustomEvent("wf:dirty-clear", { detail: { scope: "session" } }));
+    toast("Session Saved", `Project saved this session at ${timeLabel()}.`);
     return p;
   }
   function newProject() {
     localStorage.setItem(LS_ACTIVE, id("project"));
     applyMetadata({ name: "Untitled Project", author: "User", genre: "Dubstep", key: "—", bpm: WF.state ? WF.state.bpm : 140, notes: "" });
-    pushHistory("new"); scheduleAutosave(); renderAll(); status("new project");
+    pushHistory("new"); scheduleAutosave(); renderAll(); status("new project"); toast("New Session", "Started a clean project.");
   }
   function saveSnapshot() {
     const p = saveProject();
@@ -218,9 +230,9 @@
     if (i >= 0) {
       // flat, capped history: independent entries, oldest evicted past 20 (fix-s1)
       list[i].snapshots = [snap].concat(list[i].snapshots || []).slice(0, 20);
-      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); return; }
+      if (!saveProjects(list)) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); toast("Snapshot Failed", "Could not create restore point.", "fail"); return; }
     }
-    renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved");
+    renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved"); toast("Restore Point Created", `Snapshot saved at ${timeLabel()}.`);
   }
   function pushHistory(reason) {
     if (applying) return;
@@ -263,8 +275,11 @@
     saveTimer = setTimeout(() => {
       const p = captureProject();
       p.autosavedAt = nowIso();
-      if (write(LS_AUTOSAVE, p)) { status(`autosaved ${new Date().toLocaleTimeString()}`); autosaveState("Autosaved", timeLabel(p.autosavedAt), "ok"); }
-      else { status("autosave FAILED — storage full?"); autosaveState("Storage Full", "Autosave failed", "fail"); }
+      if (write(LS_AUTOSAVE, p)) {
+        status(`autosaved ${new Date().toLocaleTimeString()}`); autosaveState("Autosaved", timeLabel(p.autosavedAt), "ok");
+        workflowStatus("Autosaved", `Session recovery saved at ${timeLabel(p.autosavedAt)}.`);
+      }
+      else { status("autosave FAILED — storage full?"); autosaveState("Storage Full", "Autosave failed", "fail"); toast("Autosave Failed", "Storage may be full.", "fail"); }
     }, 1200);
   }
   function scheduleHistory(reason) {
@@ -275,7 +290,7 @@
   function recoverAutosave() {
     const p = read(LS_AUTOSAVE, null);
     if (!p) return status("no autosave found");
-    applyProject(p); status("autosave recovered"); autosaveState("Recovered", "just now", "warn"); toast("Recovery loaded");
+    applyProject(p); status("autosave recovered"); autosaveState("Recovered", "just now", "warn"); toast("Recovery Loaded", "Autosaved session restored.", "warn");
   }
   function renderProjects() {
     const list = projects();
@@ -348,12 +363,13 @@
     if (!name) return;
     const list = workspaces();
     list.unshift({ id: id("workspace"), name, savedAt: nowIso(), layout: captureLayout() });
-    write(LS_WORKSPACES, list.slice(0, 20)); renderWorkspaces(); status("workspace saved");
+    if (write(LS_WORKSPACES, list.slice(0, 20))) { renderWorkspaces(); status("layout saved"); toast("Layout Saved", `Workspace layout saved at ${timeLabel()}.`); }
+    else { status("layout save failed"); toast("Layout Save Failed", "Workspace saves layout only. Storage may be full.", "fail"); }
   }
   function loadWorkspace() {
     const w = workspaces().find((x) => x.id === $("workspacePreset").value);
     if (!w) return status("no workspace selected");
-    applyLayout(w.layout); scheduleHistory("workspace"); status("workspace loaded");
+    applyLayout(w.layout); scheduleHistory("workspace"); status("layout loaded"); toast("Layout Loaded", "Workspace layout restored.");
   }
   function applyNamedLayout(name) {
     document.body.dataset.layout = name;

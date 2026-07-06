@@ -5,6 +5,63 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — UX SPRINT 2: workflow continuity
+
+Workflow continuity only; no DSP, synthesis, scheduling, or audio routing changed.
+- Clarified save semantics across the UI:
+  - Preset/Sound: saves this sound.
+  - Project/Session: saves this session.
+  - Layout: saves this workspace view only.
+  - Snapshot: creates a restore point.
+  - Share: copies current preset.
+  - JSON: exports a preset file.
+- Added a unified Status Center below the workflow strip. Preset load/save, session
+  save/load, autosave, recovery, layout save/load, analysis, split, sample load, share,
+  undo/redo, and failures now report through one consistent workflow status surface with
+  timestamps.
+- Added dirty tracking:
+  - Synth/preset parameter edits mark `Sound Modified`.
+  - Samples, analysis, split, sequencer, lanes, layout, and metadata edits mark
+    `Session Modified`.
+  - Saving a preset clears sound dirty; saving a session clears session dirty; loading a
+    session clears both.
+  - Destructive session/sound load actions prompt when dirty.
+- Upgraded the workflow strip from simple progress to state-aware stages: READY, ACTIVE,
+  COMPLETE, and BLOCKED with icon/color/tooltip and honest blocker reasons.
+- Added feature gating:
+  - Analyze is disabled until a sample exists.
+  - Quick Split and Wobble Match are disabled until a sample exists.
+  - Lanes show a waiting state until tracks/stems exist.
+  - Save/Share replaces the misleading Export stage because no render/export engine is
+    implemented.
+- Added automatic next-step guidance:
+  - Default sound loaded → play keyboard.
+  - Preset loaded/saved → audition with A S D F or keyboard.
+  - Sample loaded → analyze sample.
+  - Analysis complete → split sample.
+  - Split complete → open/arrange in Lanes.
+  - Session saved → continue creating.
+- Improved Lanes continuity: split completion reports stem count, highlights Lanes, and
+  exposes a one-click Open Lanes action.
+- Improved Sequencer continuity: pattern summary now reports 16 steps, hit count, and
+  Swing 0%; empty patterns show “Click cells to create your first beat”; Play reports
+  Stopped/Playing instead of ambiguous Play/Pause.
+- Improved preset continuity: first launch with no active preset loads the first factory
+  sound automatically and selects it for immediate audition.
+- Microcopy pass: user-facing labels now say Sound, Session, Layout, Tone / Drums Split,
+  Center / Side Split, Loudness, and Compression while preserving technical terms where
+  useful as secondary text.
+
+Verified headlessly/static:
+- All `js/*.js` pass `node --check`.
+- DOM id cross-check passes: all `ui.js`/`projects.js`/`ux.js` `$()` references resolve;
+  no duplicate ids.
+- `git diff --check` passes.
+- Browser smoke remains blocked by the same container Chromium crashpad/cpufreq failure
+  documented in UX Sprint 1, so live click/visual timing checks remain queued.
+
+---
+
 ## 2026-07-06 — UX SPRINT 1: first-60-seconds workflow polish
 
 Workflow polish only; no DSP, synthesis, or audio routing changed.

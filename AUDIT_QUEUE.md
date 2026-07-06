@@ -9,6 +9,30 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## UX Sprint 2 — workflow continuity
+
+- [ ] (EYES) Save semantics: users can correctly explain Sound/Preset, Session/Project,
+      Layout, Snapshot, Share, and JSON without documentation.
+- [ ] (EYES) Dirty indicators: Sound Modified and Session Modified appear for the right
+      edits, clear on the right saves, and do not appear for browser filtering/search.
+- [ ] (EYES) Destructive prompts: loading a sound/session or recovering autosave warns
+      when unsaved dirty state exists and does not warn when clean.
+- [ ] (EYES) Workflow strip: READY/ACTIVE/COMPLETE/BLOCKED states match reality during
+      Load Sound → Play → Sample → Analyze → Split → Arrange → Save/Share.
+- [ ] (EYES) Feature gates: Analyze/Split/Wobble Match are disabled before sample load
+      and the reason is obvious before the user gets stuck.
+- [ ] (EYES) Next-step guidance: status center suggestions appear after preset load,
+      sample load, analysis complete, split complete, and session save, then disappear
+      without interrupting work.
+- [ ] (EYES) Lanes continuity: after split, “2 stems added to Lanes” appears, Lanes is
+      briefly highlighted, and Open Lanes scrolls to the correct panel.
+- [ ] (EYES) Preset continuity: first launch auto-loads a factory sound and the user can
+      produce sound with one keyboard/mouse action.
+- [ ] (EYES) Sequencer continuity: empty-pattern guidance, hit count, and Stopped/Playing
+      labels are clear and update correctly.
+- [ ] (EYES) Global Status Center feels like the single source of truth rather than
+      competing with local status snippets.
+
 ## UX Sprint 1 — workflow polish
 
 - [ ] (EYES) First launch: a new user understands the intended path from the workflow

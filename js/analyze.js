@@ -175,7 +175,11 @@
 
     $("detectBtn").addEventListener("click", async () => {
       if (busy) return;
-      if (!WF.Player || !WF.Player.buffer) { $("detConf").value = "load a file first"; return; }
+      if (!WF.Player || !WF.Player.buffer) {
+        $("detConf").value = "load a sample first";
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Analyze Blocked", detail: "Load a sample first.", tone: "warn" } }));
+        return;
+      }
       busy = true; setProg(0); $("detConf").value = "analysing…";
       try {
         const r = await detect(WF.Player.buffer, setProg);
@@ -189,7 +193,13 @@
         $("gridToggle").classList.add("on"); $("gridToggle").textContent = "Grid On";
         // push BPM to the synth
         const synthBpm = $("bpm"); if (synthBpm) { synthBpm.value = Math.round(r.bpm); synthBpm.dispatchEvent(new Event("input")); }
-      } catch (e) { $("detConf").value = "failed: " + e.message; }
+        window.dispatchEvent(new CustomEvent("wf:analysis-complete", { detail: { bpm: r.bpm, key: r.key.name } }));
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Analysis Complete", detail: `${r.bpm.toFixed(1)} BPM · ${r.key.name}. Split sample next.` } }));
+        window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Split Sample", detail: "Create stems for arrangement.", target: "quickSplitBoard" } }));
+      } catch (e) {
+        $("detConf").value = "failed: " + e.message;
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Analysis Failed", detail: e.message, tone: "fail" } }));
+      }
       finally { busy = false; setProg(-1); }
     });
     $("gridToggle").addEventListener("click", () => {

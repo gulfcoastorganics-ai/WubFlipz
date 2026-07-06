@@ -59,9 +59,15 @@
     hideProgress();
     $("fileDur").textContent = fmtTime(buf.duration) + `  ·  ${buf.numberOfChannels === 1 ? "mono" : "stereo"} ${(buf.sampleRate / 1000).toFixed(1)}k`;
     updateButtons(); render();
+    window.dispatchEvent(new CustomEvent("wf:sample-loaded", { detail: { name: file.name, duration: buf.duration } }));
+    window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Sample Loaded", detail: "Analyze sample next." } }));
+    window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Analyze Sample", detail: "Detect tempo, key, and beat grid.", target: "analyzeBoard" } }));
     P.onLoaded.forEach((cb) => { try { cb(buf); } catch (e) {} });
   }
-  function fail(msg) { hideProgress(); $("fileName").textContent = msg; }
+  function fail(msg) {
+    hideProgress(); $("fileName").textContent = msg;
+    window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Sample Load Failed", detail: msg, tone: "fail" } }));
+  }
   function setProgress(p, label) {
     const wrap = $("decodeProg"); wrap.style.display = "block";
     $("decodeBar").style.width = Math.round((p || 0) * 100) + "%";

@@ -1,5 +1,28 @@
 # wubflipz — UX Changelog
 
+## 2026-07-06 — UX Sprint 2
+
+Workflow continuity only. No DSP, synthesis, or audio routing changes.
+
+- Added unified save semantics for Sound/Preset, Session/Project, Layout, Snapshot,
+  Share, and JSON export.
+- Added a Global Status Center with timestamped workflow feedback for load/save/share,
+  autosave, recovery, analysis, split, undo/redo, and failures.
+- Added Sound Modified and Session Modified dirty indicators with save/load clearing
+  behavior and destructive-action prompts.
+- Upgraded the workflow strip to READY/ACTIVE/COMPLETE/BLOCKED states with blocker
+  reasons and honest Save / Share wording instead of fake Export.
+- Disabled Analyze, Quick Split, and Wobble Match until a sample exists.
+- Added next-step guidance after successful preset load/save, sample load, analysis,
+  split, and session save.
+- Improved continuity from Split to Lanes with stem-count confirmation, Lanes highlight,
+  and one-click Open Lanes.
+- Improved preset continuity by auto-loading the first factory sound on first launch.
+- Improved sequencer continuity with empty guidance, hit count, and Stopped/Playing
+  button language.
+- Rewrote key technical labels into producer-first language while keeping technical
+  names as secondary context where useful.
+
 ## 2026-07-06 — UX Sprint 1
 
 Workflow polish only. No DSP, synthesis, or audio routing changes.

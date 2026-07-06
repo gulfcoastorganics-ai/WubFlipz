@@ -12,6 +12,9 @@
   // so project history+autosave never saw them (AUDIT_REPORT_2026-07-05 finding #7;
   // fix-s1). projects.js listens for this; its 300ms debounce absorbs drag streams.
   const emitEdit = (label) => window.dispatchEvent(new CustomEvent("wf:edit", { detail: { label: label || "Edit" } }));
+  const statusEvent = (title, detail, tone) => window.dispatchEvent(new CustomEvent("wf:status", { detail: { title, detail, tone } }));
+  const nextStep = (title, detail, target) => window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title, detail, target } }));
+  const clearDirty = (scope) => window.dispatchEvent(new CustomEvent("wf:dirty-clear", { detail: { scope } }));
 
   // -------------------------------------------------------------- formatting
   function fmt(param, v) {
@@ -186,26 +189,44 @@
   $("presetSave").addEventListener("click", () => {
     const ok = WF.Presets.saveLocal($("presetName").value || "untitled");
     if (ok && $("presetList")) renderPresetBrowser();
-    flash($("presetMsg"), ok ? "Saved to browser" : "Save failed");
+    if (ok) {
+      clearDirty("sound");
+      statusEvent("Preset Saved", `Sound saved at ${new Date().toLocaleTimeString()}.`);
+      nextStep("Ready to Play", "Press A S D F or click the keyboard to audition.", "keys");
+    } else statusEvent("Preset Save Failed", "Preset saves this sound. Storage may be full.", "fail");
+    flash($("presetMsg"), ok ? "Sound saved" : "Save failed");
   });
   $("presetLoad").addEventListener("click", () => {
     const ok = WF.Presets.loadLocal();
     if (ok) { pulsePresetName(); renderPresetBrowser(); }
+    if (ok) {
+      clearDirty("sound");
+      statusEvent("Preset Loaded", "Press A S D F or click the keyboard to audition.");
+      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
+    } else statusEvent("No Saved Preset", "Pick a factory sound or save your first sound.", "warn");
     flash($("presetMsg"), ok ? "Loaded from browser" : "No saved preset");
   });
   $("presetDownload").addEventListener("click", () => {
     WF.Presets.download($("presetName").value || "untitled");
-    flash($("presetMsg"), "Downloaded .json");
+    statusEvent("JSON Exported", `Preset file exported at ${new Date().toLocaleTimeString()}.`);
+    flash($("presetMsg"), "Exported .json");
   });
   $("presetShare").addEventListener("click", () => {
     WF.Presets.copyShareLink($("presetName").value || "shared-patch")
-      .then(() => flash($("presetMsg"), "Share link copied"))
-      .catch(() => flash($("presetMsg"), "Copy failed"));
+      .then(() => { statusEvent("Share Copied", `Current preset copied at ${new Date().toLocaleTimeString()}.`); flash($("presetMsg"), "Share link copied"); })
+      .catch(() => { statusEvent("Share Failed", "Clipboard unavailable.", "fail"); flash($("presetMsg"), "Copy failed"); });
   });
   $("presetFile").addEventListener("change", (e) => {
     const f = e.target.files[0]; if (!f) return;
-    WF.Presets.uploadFrom(f).then(() => { $("presetName").value = (f.name || "").replace(/\.json$/i, ""); pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + f.name); })
-      .catch(() => flash($("presetMsg"), "Invalid preset file"));
+    if (WF.UX && WF.UX.dirty && WF.UX.dirty().soundDirty && !window.confirm("Uploading a preset may replace unsaved sound changes. Continue?")) { e.target.value = ""; return; }
+    WF.Presets.uploadFrom(f).then(() => {
+      $("presetName").value = (f.name || "").replace(/\.json$/i, "");
+      clearDirty("sound");
+      pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + f.name);
+      statusEvent("Preset Loaded", "Uploaded sound is ready to audition.");
+      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
+    })
+      .catch(() => { statusEvent("Preset Upload Failed", "Invalid preset file.", "fail"); flash($("presetMsg"), "Invalid preset file"); });
     e.target.value = "";
   });
   const presetBrowser = { mode: "all", selectedId: WF.Presets.browserState().selectedId || "", rows: [] };
@@ -317,6 +338,9 @@
     const p = WF.Presets.loadById(presetBrowser.selectedId);
     if (!p) return flash($("presetMsg"), "Load failed");
     $("presetName").value = p.name; pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + p.name);
+    clearDirty("sound");
+    statusEvent("Preset Loaded", `${p.name} is ready. Press A S D F or click the keyboard.`);
+    nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
     window.dispatchEvent(new CustomEvent("wf:workflow-update"));
   }
   function onPresetKeys(e) {
@@ -700,6 +724,14 @@
     $("presetName").value = hashPreset.name;
     pulsePresetName();
     flash($("presetMsg"), "Loaded URL patch");
+  }
+  if (!hashPreset && WF.Presets.browserState && !WF.Presets.browserState().activeId && WF.Presets.FACTORY && WF.Presets.FACTORY[0]) {
+    WF.Presets.loadFactory(WF.Presets.FACTORY[0].name);
+    $("presetName").value = WF.Presets.FACTORY[0].name;
+    pulsePresetName();
+    renderPresetBrowser();
+    clearDirty("sound");
+    statusEvent("Default Sound Loaded", "Press A S D F or click the keyboard to audition.");
   }
 
   // reflect BPM readout after any URL patch load

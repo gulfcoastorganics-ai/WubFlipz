@@ -43,20 +43,25 @@
     <div class="ux-toast" id="uxToast" role="status" aria-live="polite"></div>
 
     <nav class="workflow-strip" id="workflowStrip" aria-label="Start here workflow">
-      <button type="button" data-step="preset" data-target="presetBrowser" aria-label="Step 1 Load Preset"><span>1</span><b>Load Preset</b></button>
+      <button type="button" data-step="preset" data-target="presetBrowser" aria-label="Step 1 Load Sound"><span>1</span><b>Load Sound</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="keys" data-target="keys" aria-label="Step 2 Play Keys"><span>2</span><b>Play Keys</b></button>
+      <button type="button" data-step="keys" data-target="keys" aria-label="Step 2 Play"><span>2</span><b>Play</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="sample" data-target="playerBoard" aria-label="Step 3 Load Sample"><span>3</span><b>Load Sample</b></button>
+      <button type="button" data-step="sample" data-target="playerBoard" aria-label="Step 3 Sample"><span>3</span><b>Sample</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="analyze" data-target="analyzeBoard" aria-label="Step 4 Analyze"><span>4</span><b>Analyze</b></button>
+      <button type="button" data-step="analyze" data-target="analyzeBoard" aria-label="Step 4 Analyze"><span>4</span><b>Analyze</b><em>Blocked</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="split" data-target="quickSplitBoard" aria-label="Step 5 Split"><span>5</span><b>Split</b></button>
+      <button type="button" data-step="split" data-target="quickSplitBoard" aria-label="Step 5 Split"><span>5</span><b>Split</b><em>Blocked</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="arrange" data-target="lanesBoard" aria-label="Step 6 Arrange"><span>6</span><b>Arrange</b></button>
+      <button type="button" data-step="arrange" data-target="lanesBoard" aria-label="Step 6 Arrange"><span>6</span><b>Arrange</b><em>Waiting</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="export" data-target="projectBoard" aria-label="Step 7 Export"><span>7</span><b>Export</b></button>
+      <button type="button" data-step="save" data-target="projectBoard" aria-label="Step 7 Save or Share"><span>7</span><b>Save / Share</b><em>Blocked</em></button>
     </nav>
+    <section class="status-center" id="statusCenter" aria-label="Workflow status" role="status" aria-live="polite">
+      <b id="globalStatusTitle">Ready to create</b>
+      <span id="globalStatusDetail">Load a sound, then play the keyboard.</span>
+      <small id="globalStatusTime">—</small>
+    </section>
 
     <!-- PROJECT MANAGEMENT -->
     <section class="board project-board" id="projectBoard" aria-label="Project management" data-tip="Project stores the entire session: preset, layout, metadata, snapshots, and sample references.">
@@ -72,6 +77,7 @@
         <button class="toggle" id="projectUndo" type="button" title="Undo (Ctrl/Cmd+Z)">Undo</button>
         <button class="toggle" id="projectRedo" type="button" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
         <button class="toggle project-expand" id="projectExpand" type="button" aria-expanded="false" aria-controls="projectExpanded">Expand</button>
+        <div class="save-semantics"><b id="sessionDirty">Session Saved</b><span>Project saves this session.</span></div>
       </div>
       <div class="project-expanded" id="projectExpanded" aria-hidden="true" inert>
       <div class="project-grid">
@@ -89,8 +95,9 @@
             <button class="tbtn" id="projectNew">New</button>
             <button class="tbtn" id="projectLoad">Load Selected</button>
             <button class="toggle" id="projectRecover">Recover Autosave</button>
-            <button class="tbtn" id="projectSnapshot" data-tip="Snapshot is a version of the current project you can restore later.">Snapshot</button>
+            <button class="tbtn" id="projectSnapshot" data-tip="Snapshot creates a restore point for this session.">Snapshot</button>
           </div>
+          <p class="microcopy">Session saves this project. Snapshot creates a restore point.</p>
           <div class="screen-cap"><span>Status</span><b id="projectStatus" aria-live="polite">autosave ready</b></div>
         </div>
         <div class="project-pane">
@@ -100,12 +107,13 @@
           </div>
           <div class="project-toolbar">
             <label class="fld"><span>Layout</span><select id="layoutSelect"><option>Studio</option><option>Browser</option><option>Performance</option></select></label>
-            <label class="fld" data-tip="Workspace stores layout only."><span>Workspace</span><select id="workspacePreset"></select></label>
+            <label class="fld" data-tip="Layout stores panel visibility and sizing only."><span>Layout Preset</span><select id="workspacePreset"></select></label>
           </div>
           <div class="btnrow">
-            <button class="toggle" id="workspaceSave">Save Workspace</button>
-            <button class="toggle" id="workspaceLoad">Load Workspace</button>
+            <button class="toggle" id="workspaceSave">Save Layout</button>
+            <button class="toggle" id="workspaceLoad">Load Layout</button>
           </div>
+          <p class="microcopy">Layout saves this workspace view only.</p>
           <div class="dock-list" id="dockList" aria-label="Dockable panel visibility"></div>
           <div class="snapshot-list" id="snapshotList" aria-label="Session snapshots"></div>
           <div class="sample-list" id="sampleList">No samples loaded.</div>
@@ -208,11 +216,11 @@
           <div class="viz-meter-grid">
             <div class="viz-meter"><span>RMS</span><i><b id="rmsBar"></b></i><em id="rmsReadout">-∞ dB</em></div>
             <div class="viz-meter"><span>PEAK</span><i><b id="peakBar"></b></i><em id="peakReadout">-∞ dB</em></div>
-            <div class="viz-meter"><span>LUFS-M</span><i><b id="lufsBar"></b></i><em id="lufsReadout">-∞</em></div>
+            <div class="viz-meter"><span>Loudness</span><i><b id="lufsBar"></b></i><em id="lufsReadout">-∞</em></div>
             <div class="viz-meter"><span>CORR</span><i class="centered"><b id="corrBar"></b></i><em id="corrReadout">mono</em></div>
-            <div class="viz-meter"><span>GR TOP</span><i><b id="grTopBar"></b></i><em id="grTopReadout">0.0</em></div>
-            <div class="viz-meter"><span>GR SUB</span><i><b id="grSubBar"></b></i><em id="grSubReadout">0.0</em></div>
-            <div class="viz-meter"><span>GR OUT</span><i><b id="grOutBar"></b></i><em id="grOutReadout">0.0</em></div>
+            <div class="viz-meter"><span>Comp Top</span><i><b id="grTopBar"></b></i><em id="grTopReadout">0.0</em></div>
+            <div class="viz-meter"><span>Comp Sub</span><i><b id="grSubBar"></b></i><em id="grSubReadout">0.0</em></div>
+            <div class="viz-meter"><span>Comp Out</span><i><b id="grOutBar"></b></i><em id="grOutReadout">0.0</em></div>
             <div class="viz-meter"><span>CLIP</span><button class="clip-reset" id="clipReset" type="button">CLEAR</button><em id="clipState">clean</em></div>
           </div>
         </div>
@@ -223,18 +231,21 @@
       </section>
 
       <!-- PRESETS -->
-      <section class="module" aria-label="Presets" data-tip="Preset stores the synth sound only, plus compatible sequencer state when present.">
-        <h2>Presets</h2><div class="sub">localStorage · JSON File</div>
+      <section class="module" aria-label="Presets" data-tip="Sound saves this synth preset only, plus compatible sequencer state when present.">
+        <h2>Sounds</h2><div class="sub">Preset Browser · Sound Library</div>
         <label class="fld full"><span>Name</span><input type="text" id="presetName" placeholder="my-wobble" /></label>
+        <div class="dirty-pill" id="soundDirty">Preset Saved</div>
         <div class="btnrow">
           <button class="toggle" id="presetSave">Save</button>
           <button class="toggle" id="presetLoad">Load</button>
         </div>
+        <p class="microcopy">Preset saves this sound.</p>
         <div class="btnrow">
-          <button class="toggle" id="presetDownload">Download .json</button>
+          <button class="toggle" id="presetDownload">Export JSON</button>
           <button class="toggle" id="presetShare">Copy Share Link</button>
           <label class="toggle filebtn">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
         </div>
+        <p class="microcopy">Share copies current preset. JSON exports a preset file.</p>
         <div class="preset-browser" id="presetBrowser">
           <label class="fld full"><span>Search</span><input type="search" id="presetSearch" placeholder="name, tag, author, genre…" autocomplete="off" /></label>
           <div class="preset-filters">
@@ -277,6 +288,7 @@
         <button class="tbtn" id="zoomOutBtn">Zoom −</button>
         <span class="treadout" id="timeReadout">0:00 / 0:00</span>
       </div>
+      <p class="board-note gate-hint" id="sampleNext">Load audio to unlock Analyze and Split.</p>
       <p class="board-note">Click the waveform to seek · drag across it to set a loop region.</p>
     </section>
 
@@ -298,7 +310,7 @@
       <p class="board-note empty-guidance"><b>Load a sample to detect</b><br>Tempo · Key · Beat Grid</p>
       <p class="board-note">Estimates only — edit if wrong. Detected BPM feeds the Wobble module; grid lines + snap apply to the Sample and Lanes.</p>
       <div class="btnrow">
-        <button class="tbtn" id="detectBtn">Detect Tempo &amp; Key</button>
+        <button class="tbtn" id="detectBtn">Analyze Sample</button>
         <button class="toggle" id="gridToggle">Grid Off</button>
         <button class="toggle" id="snapToggle">Snap Off</button>
       </div>
@@ -313,11 +325,11 @@
     <!-- QUICK SPLIT (Stage 3) -->
     <section class="board" id="quickSplitBoard" aria-label="Quick Split stem separation">
       <div class="board-head"><h2>Quick Split</h2><span class="board-sub">DSP · not ML · approximate</span></div>
-      <p class="board-note empty-guidance"><b>Split loaded audio into</b><br>HPSS · Mid/Side<br>Stems appear automatically in Lanes.</p>
+      <p class="board-note empty-guidance"><b>Split loaded audio into</b><br>Tone / Drums · Center / Sides<br>Stems appear automatically in Lanes.</p>
       <p class="board-note">Rough, client-side separation for sketching — <b>not</b> professional stem quality. HPSS splits tonal vs. drum content; Mid/Side roughly removes or isolates centre-panned vocals.</p>
       <div class="btnrow">
-        <button class="tbtn" id="splitHP" data-tip="HPSS separates harmonic and percussive material.">Harmonic / Percussive (HPSS)</button>
-        <button class="tbtn" id="splitMS">Vocal Remove / Isolate (Mid-Side)</button>
+        <button class="tbtn" id="splitHP" data-tip="HPSS separates harmonic and percussive material.">Tone / Drums Split <small>HPSS</small></button>
+        <button class="tbtn" id="splitMS">Center / Side Split <small>Mid/Side</small></button>
         <button class="tbtn" id="matchWobbleBtn" data-tip="Wobble Match estimates modulation timing from the loaded audio.">Match Wobble from Track</button>
         <button class="tbtn" id="splitPreviewStop">Stop Preview</button>
       </div>
@@ -337,6 +349,8 @@
         <button class="toggle" id="seqSync" aria-pressed="true">Sync</button>
         <span class="treadout" id="seqReadout">step 1 / 16</span>
       </div>
+      <div class="seq-summary" id="seqSummary">16 Steps · 0 Hits · Swing 0%</div>
+      <p class="board-note empty-guidance" id="seqEmpty">Click cells to create your first beat.</p>
       <div class="seq-grid" id="seqGrid"></div>
       <div class="seq-pads" id="seqPads"></div>
       <p class="board-note">V1 is fixed 16-step binary on/off. Pattern length variants, swing, humanize, and per-step velocity/accent are deferred.</p>
@@ -353,7 +367,8 @@
       <div class="lanes-container" id="lanesContainer">
         <div class="lanes-playhead" id="lanesPlayhead"></div>
       </div>
-      <p class="board-note empty-guidance" id="lanesEmpty">Tracks created from Samples, Quick Split, and Recording appear here.</p>
+      <p class="board-note empty-guidance" id="lanesEmpty">Waiting for tracks. Load a sample or split audio, and stems will appear here automatically.</p>
+      <div class="lane-guide" id="laneGuide" hidden><span id="laneGuideText">Ready to arrange.</span><button class="tbtn" id="openLanesBtn" type="button">Open Lanes</button></div>
       <p class="board-note">Click a lane to seek · per-lane Vol / Pan / Mute (M) / Solo (S) · the Sample loop region applies here too.</p>
     </section>
 

@@ -142,19 +142,37 @@
     // register the original as a track when a file loads
     if (WF.Player) WF.Player.onLoaded.push((buf) => { Tracks.reset(); Tracks.add("Original", buf, "original"); status(""); });
 
-    const guard = () => { if (!WF.Player || !WF.Player.buffer) { status("Load a file first."); return false; } if (busy) return false; return true; };
+    const guard = () => {
+      if (!WF.Player || !WF.Player.buffer) {
+        status("Load a sample first.");
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Split Blocked", detail: "Load a sample first.", tone: "warn" } }));
+        return false;
+      }
+      if (busy) return false;
+      return true;
+    };
 
     $("splitHP").addEventListener("click", async () => {
       if (!guard()) return;
-      busy = true; status("Running HPSS… (approximate, this can take a while on long files)"); setProg(0);
-      try { await runHPSS(WF.Player.buffer, WF.Player.ctx, setProg); status("HPSS done — harmonic + percussive added below."); }
-      catch (e) { status("HPSS failed: " + e.message); }
+      busy = true; status("Running Tone / Drums split… (approximate, this can take a while on long files)"); setProg(0);
+      try {
+        await runHPSS(WF.Player.buffer, WF.Player.ctx, setProg); status("Tone / Drums split complete — 2 stems added to Lanes.");
+        window.dispatchEvent(new CustomEvent("wf:split-complete", { detail: { count: 2, kind: "Tone / Drums" } }));
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Split Complete", detail: "2 stems added to Lanes. Ready to arrange." } }));
+        window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Ready to Arrange", detail: "Open Lanes to arrange stems.", target: "lanesBoard" } }));
+      }
+      catch (e) { status("HPSS failed: " + e.message); window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Split Failed", detail: e.message, tone: "fail" } })); }
       finally { busy = false; setProg(-1); }
     });
     $("splitMS").addEventListener("click", () => {
       if (!guard()) return;
       const ok = runMidSide(WF.Player.buffer, WF.Player.ctx);
-      status(ok ? "Mid/Side done — vocal-removed + isolate added below." : "Mid/Side needs a STEREO file (this one is mono).");
+      status(ok ? "Center / Side split complete — 2 stems added to Lanes." : "Center / Side split needs a STEREO file (this one is mono).");
+      if (ok) {
+        window.dispatchEvent(new CustomEvent("wf:split-complete", { detail: { count: 2, kind: "Center / Side" } }));
+        window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Split Complete", detail: "2 stems added to Lanes. Ready to arrange." } }));
+        window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Ready to Arrange", detail: "Open Lanes to arrange stems.", target: "lanesBoard" } }));
+      } else window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Split Blocked", detail: "Center / Side split needs a stereo sample.", tone: "warn" } }));
     });
     $("splitPreviewStop").addEventListener("click", stopPreview);
 
@@ -199,7 +217,7 @@
   function renderList(list) {
     const el = $("stemList"); if (!el) return;
     el.innerHTML = "";
-    if (!list.length) { el.innerHTML = `<span class="muted">No tracks yet — load a file, then split.</span>`; return; }
+    if (!list.length) { el.innerHTML = `<span class="muted">No tracks yet — load a sample, then split.</span>`; return; }
     list.forEach((t) => {
       const row = document.createElement("div"); row.className = "stem-row";
       const nm = document.createElement("span"); nm.className = "stem-name"; nm.textContent = t.name;

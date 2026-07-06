@@ -195,7 +195,8 @@
         const cell = document.createElement("button"); cell.type = "button"; cell.className = "seq-cell"; cell.dataset.row = r; cell.dataset.step = c; cell.setAttribute("aria-label", `${pad.name} step ${c + 1}`);
         cell.addEventListener("click", () => {
           S.pattern[r][c] = !S.pattern[r][c]; cell.classList.toggle("on", S.pattern[r][c]);
-          window.dispatchEvent(new CustomEvent("wf:edit")); // grid edits reach history/autosave (fix-s1)
+          updateSummary();
+          window.dispatchEvent(new CustomEvent("wf:edit", { detail: { label: "Sequencer Pattern" } })); // grid edits reach history/autosave (fix-s1)
         });
         g.appendChild(cell);
       }
@@ -245,9 +246,22 @@
   }
   function refreshGrid() {
     document.querySelectorAll(".seq-cell").forEach((c) => c.classList.toggle("on", !!S.pattern[+c.dataset.row][+c.dataset.step]));
+    updateSummary();
   }
   function updateButtons() {
-    const b = $("seqPlay"); if (b) { b.textContent = S.playing ? "Pause" : "Play"; b.classList.toggle("on", S.playing); }
+    const b = $("seqPlay"); if (b) { b.textContent = S.playing ? "Playing" : "Stopped"; b.classList.toggle("on", S.playing); }
+  }
+  function hitCount() {
+    return S.pattern.reduce((sum, row) => sum + row.filter(Boolean).length, 0);
+  }
+  function updateSummary() {
+    const hits = hitCount();
+    const summary = $("seqSummary"), empty = $("seqEmpty");
+    if (summary) {
+      summary.textContent = `${STEPS} Steps · ${hits} ${hits === 1 ? "Hit" : "Hits"} · Swing 0%`;
+      summary.classList.toggle("empty", hits === 0);
+    }
+    if (empty) empty.hidden = hits > 0;
   }
 
   function capture() {
@@ -271,6 +285,7 @@
 
   function initUI() {
     buildGrid(); buildPads(); setSync(S.sync);
+    updateButtons(); updateSummary();
     $("seqPlay").addEventListener("click", () => S.playing ? pause() : play());
     $("seqStop").addEventListener("click", stop);
     $("seqSync").addEventListener("click", () => { setSync(!S.sync); window.dispatchEvent(new CustomEvent("wf:edit")); });
