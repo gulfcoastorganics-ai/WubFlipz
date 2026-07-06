@@ -1,5 +1,16 @@
 # wubflipz — UX Changelog
 
+## 2026-07-06 — UX Sprint 3.2
+
+Compression gap-closer only. No DSP, no new panels, no new controls, no new workflows.
+
+- Routed sound edits to the existing preset save path through a Status Center action:
+  "Save Sound."
+- Added a plain text affordance in Save / Share indicating that Advanced tools live
+  below.
+- Clarified Quick Split empty-state copy to explicitly name the Tone / Drums versus
+  Center / Sides choice.
+
 ## 2026-07-06 — UX Sprint 3.1
 
 Declutter and reorder pass only. No DSP, synthesis, scheduling, audio routing, or

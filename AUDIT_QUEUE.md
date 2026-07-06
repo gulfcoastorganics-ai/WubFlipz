@@ -9,6 +9,16 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## UX Sprint 3.2 — compression gap-closer
+
+- [ ] (EYES) Save Sound action: after changing Wobble Depth, Growl Amount, or Filter
+      Cutoff, confirm the Status Center exposes a "Save Sound" action and that it fires
+      the existing preset save path.
+- [ ] (EYES/A11Y) Advanced affordance copy: confirm the Save / Share text line is
+      visible, understandable, and does not feel like a new workflow or panel.
+- [ ] (EYES) Quick Split copy: confirm the prompt "Choose Tone / Drums or Center /
+      Sides." reduces hesitation without implying automation that does not exist.
+
 ## Workflow Compression Audit — 2026-07-06
 
 - [ ] (EYES) Validate measured scroll cost for Sound → Play → Design → Sample →

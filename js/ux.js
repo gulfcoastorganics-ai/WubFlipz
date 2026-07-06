@@ -195,6 +195,7 @@
     if (target === "quickSplitBoard" || target === "splitHP") return "Split Sample";
     if (target === "lanesBoard") return "Open Lanes";
     if (target === "projectBoard" || target === "projectSave") return "Save Session";
+    if (target === "presetSave") return "Save Sound";
     if (target === "auditionStrip" || target === "keys") return "Play Keys";
     if (target === "playerBoard") return "Open Sample";
     return title && title.includes("Save") ? "Continue" : "Next";
@@ -297,7 +298,7 @@
     window.addEventListener("wf:edit", (e) => {
       const label = e.detail && e.detail.label;
       markDirty(SOUND_LABELS.has(label) ? "all" : "session");
-      if (label && SOUND_LABELS.has(label)) setStatus("Sound Modified", "Save sound when ready.");
+      if (label && SOUND_LABELS.has(label)) suggest("Sound Modified", "Save sound when ready.", "presetSave");
       else setStatus("Session Modified", "Save session when ready.");
     });
     const oldOn = WF.Engine && WF.Engine._onNoteOn;

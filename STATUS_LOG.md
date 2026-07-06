@@ -5,6 +5,24 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — UX SPRINT 3.2: compression gap-closer
+
+UX wiring and copy only; no DSP, no new panels, no new controls, no new workflows.
+- Made sound edits actionable by routing `wf:edit` for sound parameters to the existing
+  `presetSave` control via Status Center, with a new "Save Sound" next action.
+- Added a plain text affordance in Save / Share noting that Advanced tools are below.
+- Clarified Quick Split empty guidance to explicitly name the Tone / Drums vs. Center /
+  Sides choice.
+- No layout, palette, or module movement changed in this pass.
+
+Verified static/headless:
+- `node --check js/*.js` still expected to pass after the wiring update.
+- DOM IDs remain unchanged; no new controls or panels were added.
+- Browser runtime verification is still required for the new Save Sound action and the
+  updated copy to be checked by eye.
+
+---
+
 ## 2026-07-06 — WORKFLOW COMPRESSION AUDIT
 
 Audit-only pass. No code, markup, CSS, DSP, or app behavior changed.
