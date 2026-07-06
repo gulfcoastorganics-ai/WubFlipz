@@ -47,20 +47,38 @@
       <i aria-hidden="true">↓</i>
       <button type="button" data-step="keys" data-target="keys" aria-label="Step 2 Play"><span>2</span><b>Play</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="sample" data-target="playerBoard" aria-label="Step 3 Sample"><span>3</span><b>Sample</b><em>Ready</em></button>
+      <button type="button" data-step="design" data-target="wobble" aria-label="Step 3 Design"><span>3</span><b>Design</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="analyze" data-target="analyzeBoard" aria-label="Step 4 Analyze"><span>4</span><b>Analyze</b><em>Blocked</em></button>
+      <button type="button" data-step="sample" data-target="playerBoard" aria-label="Step 4 Sample"><span>4</span><b>Sample</b><em>Ready</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="split" data-target="quickSplitBoard" aria-label="Step 5 Split"><span>5</span><b>Split</b><em>Blocked</em></button>
+      <button type="button" data-step="analyze" data-target="analyzeBoard" aria-label="Step 5 Analyze"><span>5</span><b>Analyze</b><em>Blocked</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="arrange" data-target="lanesBoard" aria-label="Step 6 Arrange"><span>6</span><b>Arrange</b><em>Waiting</em></button>
+      <button type="button" data-step="split" data-target="quickSplitBoard" aria-label="Step 6 Split"><span>6</span><b>Split</b><em>Blocked</em></button>
       <i aria-hidden="true">↓</i>
-      <button type="button" data-step="save" data-target="projectBoard" aria-label="Step 7 Save or Share"><span>7</span><b>Save / Share</b><em>Blocked</em></button>
+      <button type="button" data-step="arrange" data-target="lanesBoard" aria-label="Step 7 Arrange"><span>7</span><b>Arrange</b><em>Waiting</em></button>
+      <i aria-hidden="true">↓</i>
+      <button type="button" data-step="save" data-target="projectBoard" aria-label="Step 8 Save or Share"><span>8</span><b>Save / Share</b><em>Blocked</em></button>
     </nav>
     <section class="status-center" id="statusCenter" aria-label="Workflow status" role="status" aria-live="polite">
       <b id="globalStatusTitle">Ready to create</b>
       <span id="globalStatusDetail">Load a sound, then play the keyboard.</span>
       <small id="globalStatusTime">—</small>
+      <button class="status-action" id="statusAction" type="button" hidden>Next</button>
+    </section>
+    <section class="audition-strip" id="auditionStrip" aria-label="Fast audition controls">
+      <span>Audition sound</span>
+      <button type="button" data-key="a">A</button>
+      <button type="button" data-key="s">S</button>
+      <button type="button" data-key="d">D</button>
+      <button type="button" data-key="f">F</button>
+      <small>or use your keyboard</small>
+    </section>
+    <section class="continue-session" id="continueSession" hidden aria-label="Continue previous work">
+      <b>Continue Last Session</b>
+      <span id="continueSessionMeta">Last saved recently.</span>
+      <button class="tbtn" id="resumeSession" type="button">Resume</button>
+      <button class="toggle" id="openRecentSession" type="button">Open Recent</button>
+      <button class="toggle" id="newSessionQuick" type="button">New Session</button>
     </section>
 
     <!-- PROJECT MANAGEMENT -->
@@ -95,7 +113,7 @@
             <button class="tbtn" id="projectNew">New</button>
             <button class="tbtn" id="projectLoad">Load Selected</button>
             <button class="toggle" id="projectRecover">Recover Autosave</button>
-            <button class="tbtn" id="projectSnapshot" data-tip="Snapshot creates a restore point for this session.">Snapshot</button>
+            <button class="tbtn secondary-action" id="projectSnapshot" data-tip="Snapshot creates a restore point for this session.">Snapshot</button>
           </div>
           <p class="microcopy">Session saves this project. Snapshot creates a restore point.</p>
           <div class="screen-cap"><span>Status</span><b id="projectStatus" aria-live="polite">autosave ready</b></div>
@@ -110,8 +128,8 @@
             <label class="fld" data-tip="Layout stores panel visibility and sizing only."><span>Layout Preset</span><select id="workspacePreset"></select></label>
           </div>
           <div class="btnrow">
-            <button class="toggle" id="workspaceSave">Save Layout</button>
-            <button class="toggle" id="workspaceLoad">Load Layout</button>
+            <button class="toggle secondary-action" id="workspaceSave">Save Layout</button>
+            <button class="toggle secondary-action" id="workspaceLoad">Load Layout</button>
           </div>
           <p class="microcopy">Layout saves this workspace view only.</p>
           <div class="dock-list" id="dockList" aria-label="Dockable panel visibility"></div>
@@ -241,9 +259,9 @@
         </div>
         <p class="microcopy">Preset saves this sound.</p>
         <div class="btnrow">
-          <button class="toggle" id="presetDownload">Export JSON</button>
+          <button class="toggle secondary-action" id="presetDownload">Export JSON</button>
           <button class="toggle" id="presetShare">Copy Share Link</button>
-          <label class="toggle filebtn">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
+          <label class="toggle filebtn secondary-action">Upload<input type="file" id="presetFile" accept="application/json,.json" hidden /></label>
         </div>
         <p class="microcopy">Share copies current preset. JSON exports a preset file.</p>
         <div class="preset-browser" id="presetBrowser">
@@ -293,8 +311,8 @@
     </section>
 
     <!-- SOUND FUZZER -->
-    <section class="board" id="fuzzerBoard" aria-label="Sound fuzzer preset breeding">
-      <div class="board-head"><h2>Fuzzer</h2><span class="board-sub">Preset breeding · synth params only</span></div>
+    <section class="board advanced-board" id="fuzzerBoard" aria-label="Sound fuzzer preset breeding">
+      <div class="board-head"><h2>Fuzzer</h2><span class="board-sub">Advanced · Preset breeding · synth params only</span></div>
       <p class="board-note">Uses the current active preset as parent, including matched-wobble patches. Sequencer pattern mutation is deferred.</p>
       <div class="btnrow">
         <button class="tbtn" id="fuzzGenerate">Generate 6 Variants</button>
@@ -341,7 +359,7 @@
 
     <!-- STEP SEQUENCER / DRUM PAD -->
     <section class="board" id="seqBoard" aria-label="Step sequencer and drum pads">
-      <div class="board-head"><h2>Sequencer</h2><span class="board-sub">8-pad drum kit · fixed 16-step loop</span></div>
+      <div class="board-head"><h2>Sequencer</h2><span class="board-sub">Create rhythm for your arrangement</span></div>
       <div class="transport seq-transport">
         <button class="tbtn" id="seqPlay">Play</button>
         <button class="tbtn" id="seqStop">Stop</button>
@@ -358,7 +376,7 @@
 
     <!-- LANES (Stage 4) -->
     <section class="board" id="lanesBoard" aria-label="Multitrack lanes">
-      <div class="board-head"><h2>Lanes</h2><span class="board-sub">Multitrack · one shared playhead · sample-accurate</span></div>
+      <div class="board-head"><h2>Lanes</h2><span class="board-sub">Arrange stems and patterns into a track</span></div>
       <div class="transport">
         <button class="tbtn" id="lanesPlay">Play</button>
         <button class="tbtn" id="lanesStop">Stop</button>

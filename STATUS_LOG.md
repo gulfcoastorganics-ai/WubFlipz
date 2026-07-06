@@ -5,6 +5,49 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — UX SPRINT 3: workflow compression
+
+Workflow compression only; no DSP, synthesis, scheduling, or audio routing changed.
+- Upgraded the workflow strip to include **Design** as a first-class stage:
+  Sound → Play → Design → Sample → Analyze → Split → Arrange → Save / Share.
+- Made the workflow strip sticky and state-aware with current-stage glow, completed
+  checkmarks, and blocked-state explanations preserved from Sprint 2.
+- Added a compact audition strip below the Status Center. It reuses the existing
+  keyboard event path (`A S D F`) so a loaded sound can be heard without scrolling to
+  the full keyboard.
+- Added actionable Status Center behavior: next-step messages now expose a single
+  action button such as Play Keys, Analyze, Split Sample, Open Lanes, or Save Session.
+- Fixed a Sprint 2 status regression where dirty edits could overwrite the Status
+  Center with "Default Sound Loaded."
+- Added Design continuity: sound parameter edits mark `Sound Modified`, set Design to
+  active, and saved sound design completes the Design stage.
+- Improved Arrange clarity through copy:
+  - Lanes: "Arrange stems and patterns into a track."
+  - Sequencer: "Create rhythm for your arrangement."
+- Added contextual emphasis without hiding features:
+  - Current workflow panels receive subtle focus.
+  - blocked Analyze/Split are muted until a sample exists.
+  - meters stay low-emphasis until real audio is active.
+  - clean dirty indicators are quiet; modified indicators become prominent.
+- Added Continue Session surface when prior saved work exists, with Resume, Open Recent,
+  and New Session actions.
+- Reduced advanced-feature prominence without removal: Fuzzer is visually marked as
+  Advanced, while JSON export, Upload, Snapshot, and Layout controls are secondary.
+- Status action targets reduce scrolling: Sample Loaded can run Analyze directly;
+  Split Complete can open Lanes; preset load/save points to the audition strip.
+
+Verified headlessly/static:
+- All `js/*.js` pass `node --check`.
+- DOM id cross-check passes: all `ui.js`/`projects.js`/`ux.js` `$()` references resolve;
+  no duplicate ids.
+- `git diff --check` passes.
+- rAF/timer scan unchanged: `js/vizloop.js` remains the only rAF owner; the only
+  `setInterval` match remains the existing sequencer look-ahead scheduler.
+- Browser smoke remains blocked by the container Chromium crashpad/cpufreq failure
+  documented in prior logs.
+
+---
+
 ## 2026-07-06 — UX SPRINT 2: workflow continuity
 
 Workflow continuity only; no DSP, synthesis, scheduling, or audio routing changed.

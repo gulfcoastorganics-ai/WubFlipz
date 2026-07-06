@@ -9,6 +9,27 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## UX Sprint 3 — workflow compression
+
+- [ ] (EYES) Workflow strip 2.0: Sound → Play → Design → Sample → Analyze → Split →
+      Arrange → Save / Share reads naturally, and Design becomes active/complete at the
+      right moments.
+- [ ] (EARS/EYES) Audition strip: pressing A/S/D/F buttons triggers sound reliably in a
+      real browser and reduces the need to scroll to the full keyboard.
+- [ ] (EYES) Actionable Status Center: each next-action button does exactly one useful
+      thing and never surprises the user.
+- [ ] (EYES) Contextual emphasis: current workflow sections are subtly emphasized,
+      blocked sections are muted, meters activate with real audio, and no feature feels
+      hidden.
+- [ ] (EYES) Continue Session: prior work is surfaced on first launch, Resume/Open Recent/
+      New Session behave predictably, and users trust their work is safe.
+- [ ] (EYES) Arrange clarity: Lanes and Sequencer copy makes arrangement feel like the
+      place songs come together, not a disconnected preview area.
+- [ ] (EYES) Advanced emphasis: Fuzzer, JSON, Upload, Snapshot, and Layout are still
+      available but no longer compete with the core production loop.
+- [ ] (EYES) Scroll reduction: complete Sound → Play → Design → Sample → Analyze → Split
+      → Arrange → Save and compare scroll/click burden against Sprint 2.
+
 ## UX Sprint 2 — workflow continuity
 
 - [ ] (EYES) Save semantics: users can correctly explain Sound/Preset, Session/Project,

@@ -192,7 +192,7 @@
     if (ok) {
       clearDirty("sound");
       statusEvent("Preset Saved", `Sound saved at ${new Date().toLocaleTimeString()}.`);
-      nextStep("Ready to Play", "Press A S D F or click the keyboard to audition.", "keys");
+      nextStep("Ready to Play", "Press A S D F or click the keyboard to audition.", "auditionStrip");
     } else statusEvent("Preset Save Failed", "Preset saves this sound. Storage may be full.", "fail");
     flash($("presetMsg"), ok ? "Sound saved" : "Save failed");
   });
@@ -202,7 +202,7 @@
     if (ok) {
       clearDirty("sound");
       statusEvent("Preset Loaded", "Press A S D F or click the keyboard to audition.");
-      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
+      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "auditionStrip");
     } else statusEvent("No Saved Preset", "Pick a factory sound or save your first sound.", "warn");
     flash($("presetMsg"), ok ? "Loaded from browser" : "No saved preset");
   });
@@ -224,7 +224,7 @@
       clearDirty("sound");
       pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + f.name);
       statusEvent("Preset Loaded", "Uploaded sound is ready to audition.");
-      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
+      nextStep("Ready to Play", "Press A S D F or click the keyboard.", "auditionStrip");
     })
       .catch(() => { statusEvent("Preset Upload Failed", "Invalid preset file.", "fail"); flash($("presetMsg"), "Invalid preset file"); });
     e.target.value = "";
@@ -340,7 +340,7 @@
     $("presetName").value = p.name; pulsePresetName(); renderPresetBrowser(); flash($("presetMsg"), "Loaded " + p.name);
     clearDirty("sound");
     statusEvent("Preset Loaded", `${p.name} is ready. Press A S D F or click the keyboard.`);
-    nextStep("Ready to Play", "Press A S D F or click the keyboard.", "keys");
+    nextStep("Ready to Play", "Press A S D F or click the keyboard.", "auditionStrip");
     window.dispatchEvent(new CustomEvent("wf:workflow-update"));
   }
   function onPresetKeys(e) {

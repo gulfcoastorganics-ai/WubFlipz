@@ -12,8 +12,9 @@
     "Sub Level", "Cutoff", "Reso", "Depth", "Amount", "Rate", "Attack", "Decay",
     "Sustain", "Release", "Drive", "Master", "Preset Name",
   ]);
-  let heardKeys = false, soundDirty = false, sessionDirty = false;
+  let heardKeys = false, designTouched = false, soundDirty = false, sessionDirty = false;
   let toastTimer = 0, tipTimer = 0, nextTimer = 0, laneTimer = 0, tipEl = null;
+  let statusTarget = "";
 
   function sampleLoaded() { return !!(WF.Player && WF.Player.buffer); }
   function analysisDone() {
@@ -43,6 +44,13 @@
     d.textContent = detail || "";
     if (t) t.textContent = timeNow();
   }
+  function setAction(label, target) {
+    const b = $("statusAction");
+    if (!b) return;
+    statusTarget = target || "";
+    b.textContent = label || "Next";
+    b.hidden = !statusTarget;
+  }
   function showToast(message, detail, tone) {
     const el = $("uxToast");
     if (message) setStatus(message, detail, tone);
@@ -54,6 +62,7 @@
   }
   function suggest(title, detail, target) {
     setStatus(title, detail, "ok");
+    setAction(actionLabel(title, target), target);
     clearTimeout(nextTimer);
     nextTimer = setTimeout(() => {
       if (sessionDirty) setStatus("Session Modified", "Save session when ready.");
@@ -73,9 +82,9 @@
   function markDirty(scope) {
     if (scope === "sound" || scope === "all") soundDirty = true;
     if (scope === "session" || scope === "all") sessionDirty = true;
+    if (scope === "sound" || scope === "all") designTouched = true;
     renderDirty();
     updateWorkflow();
-    if (presetReady()) setStatus("Default Sound Loaded", "Press A S D F or click the keyboard to audition.");
   }
   function clearDirty(scope) {
     if (scope === "sound" || scope === "all") soundDirty = false;
@@ -86,7 +95,7 @@
   function renderDirty() {
     const sound = $("soundDirty"), session = $("sessionDirty");
     if (sound) {
-      sound.textContent = soundDirty ? "● Sound Modified" : "Preset Saved";
+      sound.textContent = soundDirty ? "● Sound Modified" : "Sound Saved";
       sound.classList.toggle("modified", soundDirty);
     }
     if (session) {
@@ -97,8 +106,13 @@
   }
 
   function stageState(key) {
-    if (key === "preset") return presetReady() ? ["complete", "Preset ready."] : ["ready", "Choose a factory or user sound."];
+    if (key === "preset") return presetReady() ? ["complete", "Sound ready."] : ["ready", "Choose a factory or user sound."];
     if (key === "keys") return heardKeys ? ["complete", "Keyboard played."] : ["ready", "Press A S D F or click the keyboard."];
+    if (key === "design") {
+      if (!heardKeys) return ["blocked", "Play the sound first."];
+      if (soundDirty) return ["ready", "Designing sound. Save when ready."];
+      return designTouched ? ["complete", "Sound design saved."] : ["ready", "Adjust Wobble, Growl, Filter, or Drive."];
+    }
     if (key === "sample") return sampleLoaded() ? ["complete", "Sample loaded."] : ["ready", "Drop or browse an audio file."];
     if (key === "analyze") return sampleLoaded() ? (analysisDone() ? ["complete", "Analysis complete."] : ["ready", "Ready to analyze sample."]) : ["blocked", "Load sample first."];
     if (key === "split") return sampleLoaded() ? (stemCount() > 0 ? ["complete", `${stemCount()} stems ready.`] : ["ready", "Ready to split loaded sample."]) : ["blocked", "Load sample first."];
@@ -107,7 +121,7 @@
     return ["ready", ""];
   }
   function currentStage(states) {
-    const order = ["preset", "keys", "sample", "analyze", "split", "arrange", "save"];
+    const order = ["preset", "keys", "design", "sample", "analyze", "split", "arrange", "save"];
     return order.find((k) => states[k] && states[k][0] === "ready") || order.find((k) => states[k] && states[k][0] === "blocked") || "save";
   }
   function updateWorkflow() {
@@ -135,6 +149,7 @@
     });
     updateGates();
     updateLanes();
+    updateEmphasis(cur);
   }
   function updateGates() {
     const noSample = !sampleLoaded();
@@ -175,6 +190,57 @@
     if (sessionDirty) bits.push("session changes");
     return window.confirm(`${action} may replace unsaved ${bits.join(" and ")}. Continue?`);
   }
+  function actionLabel(title, target) {
+    if (target === "detectBtn") return "Analyze";
+    if (target === "quickSplitBoard" || target === "splitHP") return "Split Sample";
+    if (target === "lanesBoard") return "Open Lanes";
+    if (target === "projectBoard" || target === "projectSave") return "Save Session";
+    if (target === "auditionStrip" || target === "keys") return "Play Keys";
+    if (target === "playerBoard") return "Open Sample";
+    return title && title.includes("Save") ? "Continue" : "Next";
+  }
+  function runStatusAction() {
+    if (!statusTarget) return;
+    const target = $(statusTarget);
+    if (!target) return;
+    if (target.matches && target.matches("button:not(:disabled)")) target.click();
+    else target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
+  function audition(key) {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    setTimeout(() => window.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true })), 420);
+  }
+  function moduleByKey(key) {
+    const labels = { filter: "Filter", wobble: "Wobble", growl: "Growl", out: "Drive and output" };
+    return labels[key] ? document.querySelector(`.module[aria-label="${labels[key]}"]`) : $(key);
+  }
+  function updateEmphasis(current) {
+    const map = {
+      sample: ["playerBoard"],
+      analyze: ["analyzeBoard"],
+      split: ["quickSplitBoard"],
+      arrange: ["lanesBoard", "seqBoard"],
+      save: ["projectBoard"],
+      design: ["wobble", "growl", "filter", "out"],
+    };
+    document.querySelectorAll(".workflow-focus,.workflow-muted").forEach((el) => el.classList.remove("workflow-focus", "workflow-muted"));
+    (map[current] || []).forEach((id) => { const el = moduleByKey(id); if (el) el.classList.add("workflow-focus"); });
+    if (!sampleLoaded()) ["analyzeBoard", "quickSplitBoard"].forEach((id) => { const el = $(id); if (el) el.classList.add("workflow-muted"); });
+    const active = !!(WF.Engine && WF.Engine.voiceCount && WF.Engine.voiceCount() > 0) || !!(WF.Player && WF.Player.playing) || !!(WF.Lanes && WF.Lanes.playing) || !!(WF.Sequencer && WF.Sequencer.playing);
+    document.body.classList.toggle("audio-active", active);
+  }
+  function showContinueSession() {
+    const box = $("continueSession"), meta = $("continueSessionMeta");
+    if (!box) return;
+    let has = false, label = "Last saved recently.";
+    try {
+      const projects = JSON.parse(localStorage.getItem("wubflipz.projects.v1") || "[]");
+      has = Array.isArray(projects) && projects.length > 0;
+      if (has && projects[0].savedAt) label = `Last saved ${new Date(projects[0].savedAt).toLocaleString()}`;
+    } catch (e) {}
+    box.hidden = !has;
+    if (meta) meta.textContent = label;
+  }
 
   function ensureTip() {
     if (tipEl) return tipEl;
@@ -199,6 +265,18 @@
 
   function bind() {
     document.querySelectorAll("#workflowStrip [data-step]").forEach((button) => button.addEventListener("click", () => scrollToTarget(button)));
+    if ($("statusAction")) $("statusAction").addEventListener("click", runStatusAction);
+    document.querySelectorAll("#auditionStrip [data-key]").forEach((b) => b.addEventListener("click", () => audition(b.dataset.key)));
+    if ($("resumeSession")) $("resumeSession").addEventListener("click", () => {
+      const r = $("recentProjects");
+      if (r && r.value) r.dispatchEvent(new Event("change"));
+      else if ($("projectRecover")) $("projectRecover").click();
+    });
+    if ($("openRecentSession")) $("openRecentSession").addEventListener("click", () => {
+      if ($("projectExpand") && $("projectExpand").getAttribute("aria-expanded") !== "true") $("projectExpand").click();
+      const r = $("recentProjects"); if (r) r.focus();
+    });
+    if ($("newSessionQuick")) $("newSessionQuick").addEventListener("click", () => { if ($("projectNew")) $("projectNew").click(); });
     const openLanes = $("openLanesBtn");
     if (openLanes) openLanes.addEventListener("click", () => { const lanes = $("lanesBoard"); if (lanes) lanes.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); });
     window.addEventListener("wf:toast", (e) => showToast(e.detail && e.detail.message, e.detail && e.detail.detail, e.detail && e.detail.tone));
@@ -263,6 +341,13 @@
     document.addEventListener("focusout", hideTip);
     renderDirty();
     updateWorkflow();
+    if (presetReady()) { setStatus("Default Sound Loaded", "Press A S D F or click the keyboard to audition."); setAction("Play Keys", "auditionStrip"); }
+    showContinueSession();
+    if (WF.Viz) WF.Viz.register("ux-emphasis", () => {
+      const states = {};
+      document.querySelectorAll("#workflowStrip [data-step]").forEach((button) => (states[button.dataset.step] = stageState(button.dataset.step)));
+      updateEmphasis(currentStage(states));
+    });
   }
 
   WF.UX = { updateWorkflow, toast: showToast, status: setStatus, dirty: () => ({ soundDirty, sessionDirty }) };

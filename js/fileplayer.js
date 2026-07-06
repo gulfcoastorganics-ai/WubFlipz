@@ -61,7 +61,7 @@
     updateButtons(); render();
     window.dispatchEvent(new CustomEvent("wf:sample-loaded", { detail: { name: file.name, duration: buf.duration } }));
     window.dispatchEvent(new CustomEvent("wf:status", { detail: { title: "Sample Loaded", detail: "Analyze sample next." } }));
-    window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Analyze Sample", detail: "Detect tempo, key, and beat grid.", target: "analyzeBoard" } }));
+    window.dispatchEvent(new CustomEvent("wf:next-step", { detail: { title: "Analyze Sample", detail: "Detect tempo, key, and beat grid.", target: "detectBtn" } }));
     P.onLoaded.forEach((cb) => { try { cb(buf); } catch (e) {} });
   }
   function fail(msg) {

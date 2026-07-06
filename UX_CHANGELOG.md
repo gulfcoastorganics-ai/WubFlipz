@@ -1,5 +1,21 @@
 # wubflipz — UX Changelog
 
+## 2026-07-06 — UX Sprint 3
+
+Workflow compression only. No DSP, synthesis, scheduling, or audio routing changes.
+
+- Added Design as a first-class workflow strip stage.
+- Made the workflow strip sticky so core progression stays available while scrolling.
+- Added compact audition controls using the existing keyboard-note path.
+- Made the Status Center actionable with one next-step button per success state.
+- Added contextual emphasis for active workflow sections and muted blocked sections.
+- Added a Continue Session surface for prior saved work.
+- Clarified arrangement copy in Lanes and Sequencer.
+- Quieted advanced/non-core controls without removing them: Fuzzer, JSON export, Upload,
+  Snapshot, and Layout controls are visually secondary.
+- Reduced meter competition when no audio is active.
+- Fixed a Sprint 2 status overwrite that could show "Default Sound Loaded" during edits.
+
 ## 2026-07-06 — UX Sprint 2
 
 Workflow continuity only. No DSP, synthesis, or audio routing changes.
