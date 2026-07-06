@@ -2,16 +2,17 @@
 
 ## 2026-07-06 — UX Sprint 3.1
 
-Declutter and reorder pass only. No DSP, synthesis, scheduling, or audio routing
-changes.
+Declutter and reorder pass only. No DSP, synthesis, scheduling, audio routing, or
+theme styling changes.
 
 - Reordered the page so vertical scroll now follows the workflow strip:
   Design → Sample → Analyze → Split → Arrange → Save / Share → Advanced.
 - Moved the full keyboard immediately after the Design rack to keep auditioning close
   to sound creation.
 - Moved Save / Share below Arrange while preserving the existing session controls.
-- Consolidated advanced utilities at the bottom: Fuzzer, JSON export, share link,
-  upload, snapshots, and layout/workspace controls.
+- Consolidated advanced utilities at the bottom: Fuzzer, JSON export, upload,
+  snapshots, and layout/workspace controls.
+- Kept Copy Share Link in the main Save / Share workflow.
 - Kept advanced tools visible and keyboard-accessible; they are de-emphasized but not
   hidden behind a toggle.
 - Deferred the idle meter null-state fix because the required real playback/idle repro

@@ -7,7 +7,8 @@ Update at every checkpoint.
 
 ## 2026-07-06 — UX SPRINT 3.1: declutter and reorder
 
-UX/layout pass only; no DSP, synthesis, scheduling, or audio routing changed.
+UX/layout pass only; no DSP, synthesis, scheduling, audio routing, or theme styling
+changed.
 - Reordered the top-level page flow to match the workflow strip:
   Design → Play/Keyboard → Sample → Analyze → Split → Arrange → Save / Share →
   Advanced.
@@ -16,15 +17,15 @@ UX/layout pass only; no DSP, synthesis, scheduling, or audio routing changed.
 - Moved Save / Share below Arrange while preserving the original project/session
   controls and IDs.
 - Consolidated advanced tools at the bottom of the page in a visible Advanced zone:
-  Fuzzer, Export JSON, Copy Share Link, Upload, Snapshot, and Layout controls.
-- Kept Save and Load in the main sound/session workflow; only export, breeding,
-  snapshot, and layout utilities moved to Advanced.
-- Added minimal Advanced-zone CSS so the moved tools remain discoverable but visually
-  quiet and responsive.
+  Fuzzer, Export JSON, Upload, Snapshot, and Layout controls.
+- Kept Save, Load, and Copy Share Link in the main Save / Share workflow; only export,
+  breeding, snapshot, and layout utilities moved to Advanced.
+- Removed the earlier Advanced-zone CSS addition from this pass to preserve the UX
+  Freeze requirement: move only, no restyle.
 
 Meter null-state branch:
-- Required playback/idle RMS/Peak/Corr/LUFS repro was attempted against the running
-  dev server on `http://localhost:4173/`.
+- Required playback/idle RMS/Peak/Corr/LUFS repro was attempted twice against the
+  running dev server on `http://localhost:4173/`.
 - Chromium still exits before page execution with the container crashpad/cpufreq error
   (`open /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`), so actual playback
   readings could not be collected here.

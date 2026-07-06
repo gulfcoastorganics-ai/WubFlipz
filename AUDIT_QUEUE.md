@@ -14,12 +14,14 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 - [ ] (EYES) Page order: vertical scroll now matches the workflow strip without making
       the app feel newly redesigned: Design → Sample → Analyze → Split → Arrange →
       Save / Share → Advanced.
-- [ ] (EYES/A11Y) Advanced zone: Fuzzer, Export JSON, Copy Share Link, Upload,
-      Snapshot, and Layout remain visible, keyboard-reachable, and discoverable at the
-      bottom without competing with the main workflow.
+- [ ] (EYES/A11Y) Advanced zone: Fuzzer, Export JSON, Upload, Snapshot, and Layout
+      remain visible, keyboard-reachable, and discoverable at the bottom without
+      competing with the main workflow.
+- [ ] (EYES/A11Y) Save / Share: Save, Load, and Copy Share Link remain in the main
+      Save / Share workflow and do not feel stranded in Advanced.
 - [ ] (EYES) Moved advanced controls still fire their original handlers in a real
-      browser: JSON export, share-link copy, JSON upload, snapshot creation, layout
-      save/load, dock visibility, fuzzer generate, and fuzzer breed.
+      browser: JSON export, JSON upload, snapshot creation, layout save/load, dock
+      visibility, fuzzer generate, and fuzzer breed.
 - [ ] (EYES) Keyboard placement after Design reduces scroll/travel without confusing
       the relationship between the audition strip and full keyboard.
 - [ ] (EYES) Browser console pass: confirm no runtime errors after DOM reordering.
