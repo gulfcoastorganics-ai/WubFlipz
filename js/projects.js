@@ -33,8 +33,10 @@
   // In-memory mirror of the IndexedDB-backed store: reads stay synchronous
   // (nearly every call site below predates async storage), writes go through
   // WF.DB and update the mirror immediately so a slow/failed persist never
-  // desyncs what the UI sees this session.
-  const cache = { projects: [], active: "", autosave: null, workspaces: [], recents: [] };
+  // desyncs what the UI sees this session. `snapshots` mirrors only the active
+  // project's restore points (each one is its own IndexedDB record, not an
+  // array embedded in the project — see js/db.js).
+  const cache = { projects: [], active: "", autosave: null, workspaces: [], recents: [], snapshots: [] };
 
   async function persist(key, value) {
     try { await WF.DB.set(key, value); return true; }
@@ -74,7 +76,13 @@
   }
   function timeLabel(d) { return d ? new Date(d).toLocaleTimeString() : new Date().toLocaleTimeString(); }
   function projects() { return cache.projects; }
-  async function saveProjects(list) { cache.projects = list; return persist(LS_PROJECTS, list); }
+  async function saveProjectRecord(p) {
+    try { await WF.DB.putProject(p); }
+    catch (e) { console.error("wubflipz: project save failed —", e && e.name ? e.name : e); return false; }
+    const i = cache.projects.findIndex((x) => x.id === p.id);
+    if (i >= 0) cache.projects[i] = p; else cache.projects.unshift(p);
+    return true;
+  }
   function recents() { return cache.recents; }
   async function markRecent(projectId) {
     cache.recents = [projectId].concat(recents().filter((x) => x !== projectId)).slice(0, 10);
@@ -178,10 +186,10 @@
       samples: sampleManifest(),
     };
   }
-  function currentProjectSnapshots() {
+  function currentProjectSnapshots() { return cache.snapshots; }
+  async function loadSnapshotsForActive() {
     const active = activeId();
-    const p = projects().find((x) => x.id === active);
-    return p && Array.isArray(p.snapshots) ? p.snapshots : [];
+    cache.snapshots = active ? await WF.DB.getSnapshotsForProject(active) : [];
   }
   async function applyProject(project, opts) {
     if (!project) return false;
@@ -192,6 +200,7 @@
       if (project.preset && WF.Presets && WF.Presets.apply) WF.Presets.apply(project.preset);
       applyLayout(project.layout);
       await markRecent(project.id);
+      await loadSnapshotsForActive();
       renderAll();
       if (!opts || !opts.noHistory) pushHistory("load");
       status(`loaded ${project.metadata && project.metadata.name ? project.metadata.name : "project"}`);
@@ -202,17 +211,14 @@
   }
   async function saveProject() {
     const p = captureProject();
-    const list = projects();
-    const i = list.findIndex((x) => x.id === p.id);
-    // snapshots are preserved from the stored entry (captured state excludes them)
-    p.snapshots = i >= 0 && Array.isArray(list[i].snapshots) ? list[i].snapshots : [];
-    if (i >= 0) list[i] = p; else list.unshift(p);
-    if (!(await saveProjects(list))) {
+    // snapshots are independent IndexedDB records now — saving a project never
+    // rewrites another project's history, or even its own snapshot list.
+    if (!(await saveProjectRecord(p))) {
       status("project save FAILED — storage full?"); autosaveState("Storage Full", "Project save failed", "fail");
       toast("Session Save Failed", "Project saves this session. Storage may be full.", "fail");
       return p;
     }
-    await setActiveId(p.id); await markRecent(p.id);
+    await setActiveId(p.id); await markRecent(p.id); await loadSnapshotsForActive();
     renderAll(); status("project saved"); autosaveState("Saved", timeLabel(), "ok");
     window.dispatchEvent(new CustomEvent("wf:dirty-clear", { detail: { scope: "session" } }));
     toast("Session Saved", `Project saved this session at ${timeLabel()}.`);
@@ -226,14 +232,15 @@
   async function saveSnapshot() {
     const p = await saveProject();
     const snap = { id: id("snapshot"), name: `${p.metadata.name} ${new Date().toLocaleTimeString()}`, savedAt: nowIso(), state: captureProject(p.metadata.name) };
-    const list = projects();
-    const i = list.findIndex((x) => x.id === p.id);
-    if (i >= 0) {
-      // flat, capped history: independent entries, oldest evicted past 20 (fix-s1)
-      list[i].snapshots = [snap].concat(list[i].snapshots || []).slice(0, 20);
-      if (!(await saveProjects(list))) { status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail"); toast("Snapshot Failed", "Could not create restore point.", "fail"); return; }
+    try {
+      // versioned, independent record — capped per-project at 20, oldest evicted (fix-s1)
+      await WF.DB.addSnapshot(p.id, snap);
+    } catch (e) {
+      status("snapshot save FAILED — storage full?"); autosaveState("Storage Full", "Snapshot failed", "fail");
+      toast("Snapshot Failed", "Could not create restore point.", "fail"); return;
     }
-    renderSnapshots(list[i] ? list[i].snapshots : [snap]); status("snapshot saved"); toast("Restore Point Created", `Snapshot saved at ${timeLabel()}.`);
+    await loadSnapshotsForActive();
+    renderSnapshots(cache.snapshots); status("snapshot saved"); toast("Restore Point Created", `Snapshot saved at ${timeLabel()}.`);
   }
   function pushHistory(reason) {
     if (applying) return;
@@ -465,16 +472,23 @@
     } catch (e) {}
   }
   async function loadCache() {
-    cache.projects = (await WF.DB.get(LS_PROJECTS)) || [];
+    cache.projects = (await WF.DB.getAllProjects()).sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
     cache.active = (await WF.DB.get(LS_ACTIVE)) || "";
     cache.autosave = (await WF.DB.get(LS_AUTOSAVE)) || null;
     cache.workspaces = (await WF.DB.get(LS_WORKSPACES)) || [];
     cache.recents = (await WF.DB.get(LS_RECENTS)) || [];
+    await loadSnapshotsForActive();
   }
 
   async function init() {
     if (!$("projectBoard")) return;
-    try { await migrateFromLocalStorage(); await loadCache(); }
+    try {
+      await migrateFromLocalStorage();
+      // one project blob (with embedded snapshot arrays) -> one record per
+      // project + one record per snapshot (js/db.js schema v2)
+      await WF.DB.migrateBlobToRecords(LS_PROJECTS);
+      await loadCache();
+    }
     catch (e) { console.error("wubflipz: IndexedDB unavailable, session persistence disabled —", e); }
     bind(); applyMetadata({ name: "Untitled Project", author: "User", genre: "Dubstep", key: "—", bpm: WF.state ? WF.state.bpm : 140, notes: "" });
     document.body.dataset.layout = document.body.dataset.layout || "Studio";

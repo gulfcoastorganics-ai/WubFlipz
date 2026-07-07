@@ -5,6 +5,51 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 3: IndexedDB per-project/per-snapshot schema
+
+Reproduced first: localStorage→IndexedDB migration (`migrateFromLocalStorage`) and
+the exponential-snapshot-growth fix (cap at 20, no recursive nesting) were already
+in place from earlier work. What still didn't match the spec: everything lived in
+one shared "kv" object store, and each project's up-to-20 snapshots were an array
+embedded in that project's single blob record — so every save/autosave rewrote one
+growing chunk per project rather than versioned, independent records.
+
+Built (`js/db.js`, schema bumped to v2):
+- Three stores instead of one: `kv` (singleton values), `projects` (one record per
+  project, keyPath `id`, no `snapshots` field), `snapshots` (one record per
+  snapshot, keyPath `id`, indexed by `projectId`).
+- `migrateBlobToRecords()`: one-time migration that reads the old single-blob
+  `wubflipz.projects.v1` kv record, splits each project's embedded `snapshots` array
+  into independent snapshot records, stores the lean project separately, and only
+  deletes the old blob key after every project and snapshot is confirmed written —
+  same "don't clear until the new write succeeds" discipline as the existing
+  localStorage migration, applied one schema level deeper.
+- `addSnapshot()` puts the new record, reads back the project's snapshots, and
+  evicts anything past the 20-cap — all inside **one** IndexedDB transaction. An
+  earlier draft split this across three transactions (put, read, evict) and a
+  live test of 25 rapid-fire snapshot clicks showed the cap slip to 21 stored
+  records — a real race between overlapping `addSnapshot` calls each evicting off
+  a stale read. Fixed by doing put + read + evict in a single transaction so
+  IndexedDB's own transaction ordering serializes concurrent calls.
+- `js/projects.js` updated throughout: `saveProject`/`saveSnapshot` write through
+  `putProject`/`addSnapshot` instead of rewriting a shared list; `cache.snapshots`
+  now mirrors only the active project's records, loaded via
+  `getSnapshotsForProject` on project switch/load/save.
+
+**Verified live** (headless Chromium via Playwright):
+- Seeded a legacy single-blob project (3 embedded snapshots) directly into the old
+  schema, reloaded the page, confirmed: 1 lean project record with no `snapshots`
+  field, 3 independent snapshot records recovered in the right order, old blob key
+  gone.
+- 25 rapid "Save Restore Point" clicks on a live project: stored snapshot count
+  holds at exactly 20 (was 21 before the atomic-transaction fix).
+- Full UI round trip: create/save Project A + snapshot, create/save Project B, hard
+  page reload, both projects and the snapshot both persisted; loading Project A via
+  the actual dropdown + Load button restores its name and renders its snapshot in
+  the DOM. No console/page errors in any run.
+
+---
+
 ## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 2: Web Worker + transferable buffers (Quick Split)
 
 Reproduced first: the unbounded ~53MB/derive accumulation from
