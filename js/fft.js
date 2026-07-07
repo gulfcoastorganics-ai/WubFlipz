@@ -4,7 +4,8 @@
  */
 (function () {
   "use strict";
-  const WF = (window.WF = window.WF || {});
+  const root = typeof window !== "undefined" ? window : self;
+  const WF = (root.WF = root.WF || {});
 
   function transform(re, im, inverse) {
     const n = re.length;

@@ -39,7 +39,37 @@
     return scratch[count >> 1];
   }
 
-  // ---- HPSS ----
+  // ---- HPSS worker bridge ----
+  // Runs the STFT/median-filter/ISTFT math in js/workers/stems.worker.js so the main
+  // thread never blocks on long files. The mono mixdown (a fresh Float32Array, not a
+  // view into the AudioBuffer) is handed over as a transferable ArrayBuffer instead of
+  // structured-cloned, and the worker transfers the two result buffers back the same
+  // way — no double-buffering the ~50MB+ arrays involved on a long track.
+  let hpssWorker = null, hpssJobId = 0;
+  function workerSupported() { return typeof Worker !== "undefined"; }
+  function getHpssWorker() {
+    if (!hpssWorker) hpssWorker = new Worker("js/workers/stems.worker.js");
+    return hpssWorker;
+  }
+  function hpssInWorker(mono, sr, onProgress) {
+    return new Promise((resolve, reject) => {
+      const worker = getHpssWorker();
+      const jobId = ++hpssJobId;
+      const onMessage = (e) => {
+        const msg = e.data;
+        if (msg.jobId !== jobId) return; // stale reply from a superseded run
+        if (msg.type === "progress") { onProgress && onProgress(msg.p); return; }
+        worker.removeEventListener("message", onMessage);
+        if (msg.type === "done") resolve({ harmonic: new Float32Array(msg.harmonic), percussive: new Float32Array(msg.percussive) });
+        else reject(new Error(msg.message || "HPSS worker failed"));
+      };
+      worker.addEventListener("message", onMessage);
+      // mono.buffer is transferred (detached from this thread), not cloned
+      worker.postMessage({ mono: mono.buffer, sampleRate: sr, fftSize: 2048, hop: 512, rF: 8, rT: 8, jobId }, [mono.buffer]);
+    });
+  }
+
+  // ---- HPSS (main-thread fallback for environments without Worker support) ----
   async function hpss(mono, sr, onProgress) {
     const FFT = WF.FFT.fft, IFFT = WF.FFT.ifft;
     const fftSize = 2048, hop = 512, half = fftSize / 2 + 1;
@@ -119,7 +149,9 @@
   // (Cleared only after a successful run so a failed run doesn't wipe old stems.)
   async function runHPSS(audioBuffer, ctx, onProgress) {
     const mono = monoMix(audioBuffer);
-    const { harmonic, percussive } = await hpss(mono, audioBuffer.sampleRate, onProgress);
+    const { harmonic, percussive } = workerSupported()
+      ? await hpssInWorker(mono, audioBuffer.sampleRate, onProgress)
+      : await hpss(mono, audioBuffer.sampleRate, onProgress);
     Tracks.clearDerived("hpss");
     Tracks.add("Harmonic (HPSS)", makeBuffer(ctx, harmonic, audioBuffer.sampleRate), "hpss");
     Tracks.add("Percussive (HPSS)", makeBuffer(ctx, percussive, audioBuffer.sampleRate), "hpss");

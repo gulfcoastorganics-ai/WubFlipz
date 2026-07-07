@@ -5,6 +5,41 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 2: Web Worker + transferable buffers (Quick Split)
+
+Reproduced first: the unbounded ~53MB/derive accumulation from
+AUDIT_REPORT_2026-07-05 finding #2 was **already fixed** in an earlier pass
+(`Tracks.clearDerived("hpss")` before adding a fresh pair — see `stems.js` comment
+at `runHPSS`), so repeated derives were already capped at one HPSS pair. What was
+still true to the letter of Item 2: HPSS itself still ran on the main thread
+(chunked with `await sleep()` yields, not an actual Worker), and buffers moved
+in-process rather than via transfer.
+
+Built:
+- `js/workers/stems.worker.js` — new Web Worker running the same HPSS math (STFT →
+  median-filter masks → ISTFT), reusing `js/fft.js` via `importScripts` (patched
+  `fft.js` to resolve its `WF` namespace against `self` when `window` doesn't exist,
+  so the same FFT code runs on both the main thread and the worker — one source of
+  truth, no duplicated transform).
+- `stems.js`: `runHPSS` now posts the mono mixdown to the worker as a transferable
+  `ArrayBuffer` (`postMessage(..., [mono.buffer])`, not structured-cloned) and the
+  worker transfers the harmonic/percussive result buffers back the same way. Progress
+  messages keep the existing progress bar wired. Falls back to the original
+  synchronous main-thread `hpss()` if `Worker` is unavailable.
+- The existing one-pair-per-family cap (`clearDerived`) is unchanged — it's the
+  release boundary Item 2 asked for; the worker/transfer change is what makes the
+  *processing* non-blocking, since the cap alone doesn't stop main-thread jank on a
+  long file.
+
+**Verified live** (headless Chromium via Playwright):
+- 4 successive Quick Split HPSS derives on a 6s stereo test file: track count stays
+  at 3 (Original + 2 HPSS) every time, no growth, no console/page errors.
+- 20s test file: an independent `requestAnimationFrame` counter on the main thread
+  climbed steadily and without long gaps for the full ~6.3s HPSS run — confirms the
+  work is genuinely off the main thread, not just chunked on it.
+
+---
+
 ## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 1: WebGL meter rendering (no code change)
 
 Investigated before touching anything, per working discipline. Reproduction step
