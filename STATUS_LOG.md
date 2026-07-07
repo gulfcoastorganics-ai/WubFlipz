@@ -5,6 +5,39 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 1: WebGL meter rendering (no code change)
+
+Investigated before touching anything, per working discipline. Reproduction step
+("confirm meters show fake motion at silence") did not reproduce: `js/meters.js` and
+the meter wiring in `js/ui.js` already implement the full spec —
+- WebGL2 context per meter (spectrum, phase scope, correlation, L/R), shader-per-meter,
+  persistent pre-allocated TypedArrays uploaded via `texSubImage2D`/`bufferSubData`
+  (no per-frame allocation).
+- Real `AnalyserNode` taps only: mono via a single analyser, stereo via
+  `ChannelSplitterNode` → two analysers (`fileplayer.js`, `lanes.js`), correlation
+  computed from measured L/R time-domain buffers (`ui.js: calcMetrics`).
+- Honesty rule already enforced: idle/no-source renders flat/zero, mono sources report
+  `corr: null` → UI shows "mono" instead of a fake confident +1.00.
+- Canvas 2D fallback (`drawPhase`/`phaseX`) is gated purely on WebGL2 context creation
+  failing, not on the honesty fix — matches the spec's fallback requirement.
+
+This was built and audited in earlier work (`fix-s1` "honest meters", audit #5/#6).
+
+**Verified live** (headless Chromium via Playwright, synthetic WAV test tones fed
+through `WF.Player.loadFile`, not the item's own claim):
+- Idle: `meterL` 0%, `corrReadout` "mono", no console errors.
+- Mono full-scale tone (0.999 peak): `meterL` ≈ 99.9%.
+- Stereo in-phase (L=R): `corrReadout` ≈ +0.98–1.00.
+- Stereo inverted (L=-R): `corrReadout` ≈ -0.83 to -0.96 (correct negative polarity).
+- Mono playback: `corrReadout` stays "mono", never a fake +1.00.
+- After stop: meters decay back to 0 / "mono".
+
+No code changed for this item — the (EYES) gate below still applies since this
+project's policy is that nothing is self-certified without a human check in a real
+browser with real audio and a real MIDI-free/attached environment.
+
+---
+
 ## 2026-07-06 — UX SPRINT 3.2: compression gap-closer
 
 UX wiring and copy only; no DSP, no new panels, no new controls, no new workflows.

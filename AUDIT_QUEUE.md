@@ -9,6 +9,17 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## Phase 1 Build Pass — Item 1: WebGL meter rendering
+
+- [ ] (EYES) Confirm in a real browser with real audio: silence shows flat/zero
+      meters (no fake motion); a full-scale test signal reads full-scale; a
+      phase-inverted stereo test file shows a visibly inverted Lissajous pattern on
+      the phase scope; mono material reads correlation as "mono" not a fake +1.00,
+      and out-of-phase stereo material reads correlation near -1. Automated headless
+      verification (Playwright + synthetic WAV tones) already passed — see
+      STATUS_LOG.md 2026-07-06 entry — this is the required human sign-off, not a
+      re-check of functionality.
+
 ## UX Sprint 3.2 — compression gap-closer
 
 - [ ] (EYES) Save Sound action: after changing Wobble Depth, Growl Amount, or Filter
