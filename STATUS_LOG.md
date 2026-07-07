@@ -5,6 +5,24 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 4: AudioWorklet migration (no code change)
+
+Per working discipline: identified scope before touching anything. Searched the
+whole repo for `createScriptProcessor` / `ScriptProcessorNode` / `onaudioprocess` —
+**zero matches**. Wobble and Growl (`js/engine.js`) were never built on
+`ScriptProcessorNode`: both are native `OscillatorNode` LFOs feeding `AudioParam`s
+(`filter.detune`, `filter.Q`, per-voice oscillator detune) through `GainNode`
+scalers — entirely native-graph modulation, no per-sample JS callback, no main-
+thread audio processing to move off-thread in the first place.
+
+No AudioWorkletProcessor was added. There is nothing to migrate, and adding one
+here would be inventing DSP architecture the app doesn't need — the existing
+LFO-into-AudioParam approach is already off-main-thread by construction (the
+browser's audio thread runs it natively). No audible-difference risk since no DSP
+changed; the (EARS) gate on Item 4 doesn't apply for the same reason.
+
+---
+
 ## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 3: IndexedDB per-project/per-snapshot schema
 
 Reproduced first: localStorage→IndexedDB migration (`migrateFromLocalStorage`) and
