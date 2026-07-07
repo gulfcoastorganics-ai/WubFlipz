@@ -1,5 +1,17 @@
 # wubflipz — UX Changelog
 
+## 2026-07-06 — Phase 1 Build Pass, Item 5: MIDI panel (UX Freeze lifted for this pass)
+
+New panel and new workflow surface, formally exempted from the UX Freeze that was
+in effect through UX Sprint 3.2 — this is the one item in the Phase 1 build pass
+that structurally requires it.
+
+- Added a "MIDI" panel to the existing Advanced zone, next to Fuzzer, using the
+  same board/row/button visual language already in place there — no new visual
+  system introduced.
+- Hardware MIDI controllers now play the synth (notes) and can be mapped to any
+  knob via a MIDI Learn control-to-parameter flow.
+
 ## 2026-07-06 — UX Sprint 3.2
 
 Compression gap-closer only. No DSP, no new panels, no new controls, no new workflows.

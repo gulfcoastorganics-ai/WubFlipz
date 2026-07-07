@@ -415,6 +415,13 @@
         <p class="board-note" id="fuzzMsg">Generate variants from the current active preset.</p>
         <div class="fuzz-grid" id="fuzzGrid"></div>
       </section>
+      <section class="board advanced-board" id="midiBoard" aria-label="MIDI controller mapping">
+        <div class="board-head"><h2>MIDI</h2><span class="board-sub">Advanced · Hardware controller · CC mapping</span></div>
+        <p class="board-note" id="midiStatus">Checking for MIDI access…</p>
+        <p class="board-note">Notes from any connected controller play the synth. Click Learn, then move a
+          knob or fader on your controller to bind it to that parameter.</p>
+        <div class="midi-map-list" id="midiMapList"></div>
+      </section>
     </section>
 
     <footer>wubflipz WF-1 — standalone Web Audio instrument · no build, no network · sibling to wublabz</footer>
@@ -434,6 +441,7 @@
   <script src="js/sequencer.js"></script>
   <script src="js/fuzzer.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/midi.js"></script>
   <script src="js/db.js"></script>
   <script src="js/projects.js"></script>
   <script src="js/ux.js"></script>

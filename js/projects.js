@@ -17,6 +17,7 @@
     ["analyzeBoard", "Analyze"], ["quickSplitBoard", "Quick Split"], ["seqBoard", "Sequencer"],
     ["lanesBoard", "Lanes"], ["osc", "Oscillators"], ["sub", "Sub"], ["filter", "Filter"],
     ["wobble", "Wobble"], ["growl", "Growl"], ["env", "Envelope"], ["out", "Drive/Out"], ["presets", "Presets"],
+    ["midiBoard", "MIDI"],
   ];
   const MODULE_LABELS = ["osc", "sub", "filter", "wobble", "growl", "env", "out", "presets"];
   const FIELD_LABELS = {

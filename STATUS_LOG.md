@@ -5,6 +5,49 @@ Update at every checkpoint.
 
 ---
 
+## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 5: Web MIDI API + mapping panel
+
+New UI surface — this is the item that formally requires the Phase 1 UX Freeze
+lift noted in the build brief.
+
+Built:
+- `js/midi.js` — calls `navigator.requestMIDIAccess()` on load, feature-detected
+  (no error, just a status message, if the API or a device isn't present). Note
+  on/off messages route through the exact same `press`/`release` path the
+  on-screen keyboard uses (`WF.UI.pressNote`/`releaseNote`, newly exposed), so
+  dedup and key-highlighting behavior is shared, not reimplemented. Control Change
+  messages drive knobs via a new `WF.UI.setKnobNorm(param, t)` bridge (t = CC value
+  / 127) using each knob's existing min/max/curve — no separate parameter math.
+- MIDI Learn: click Learn on a mapping row, move a hardware control, the next CC
+  number binds to that parameter (persisted in `localStorage` under
+  `wubflipz.midi.map.v1` — small reference data, not a growing structure, so it
+  didn't need the IndexedDB treatment from Item 3). Clear un-binds.
+- New `#midiBoard` panel inside the existing Advanced zone, using the same
+  `.board.advanced-board` / `.tbtn` / row conventions as the Fuzzer panel next to
+  it (`css/style.css`: `.midi-map-row` etc., matched to `.stem-row`'s pattern
+  rather than inventing new visual language). Registered in `projects.js`'s
+  `PANELS` list so dock visibility/layout save-load covers it like every other
+  panel.
+- The mappable parameter list is read directly from the live knobs
+  (`WF.UI.knobParams()`), not hand-duplicated, so it can't drift from the actual
+  control surface.
+
+**Verified live** (headless Chromium via Playwright):
+- With `navigator.requestMIDIAccess` deleted entirely: status reads "Web MIDI is
+  not supported in this browser," knobs and the rest of the app work exactly as
+  before, no console errors.
+- With a fake `MIDIAccess`/`MIDIInput` shim standing in for real hardware: status
+  shows "Connected: Fake Test Controller"; a note-on message raises voice count
+  0→1, note-off drops it back to 0; clicking Learn then sending a CC message binds
+  it (readout shows "CC 74"); sending that CC again with a different value moves
+  the mapped knob's underlying state value accordingly, live. Zero console errors
+  across all scenarios.
+
+Still needed: the (EARS/EYES) gate below — a **real** MIDI controller over real
+hardware, which this environment cannot exercise.
+
+---
+
 ## 2026-07-06 — PHASE 1 BUILD PASS, ITEM 4: AudioWorklet migration (no code change)
 
 Per working discipline: identified scope before touching anything. Searched the

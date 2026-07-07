@@ -374,6 +374,12 @@
       divSel.value = state.wobbleDiv;
       updateRateReadout(); drawEnv(); relabelKeys();
     },
+    // MIDI bridge (js/midi.js): drive a knob from a normalized 0..1 CC value, or
+    // trigger notes through the same dedup/visual path the on-screen keys use.
+    knobParams() { return Object.keys(knobs).map((p) => ({ param: p, label: knobs[p].el.dataset.label || p })); },
+    setKnobNorm(param, t) { const k = knobs[param]; if (k) k.set(t); },
+    pressNote(midi) { press(midi); },
+    releaseNote(midi) { release(midi); },
   };
 
   // -------------------------------------------------------------- keyboard

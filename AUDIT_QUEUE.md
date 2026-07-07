@@ -9,6 +9,20 @@ Legend: `[ ]` unverified · `[x]` verified by human · `(EARS)` needs listening 
 
 ---
 
+## Phase 1 Build Pass — Item 5: Web MIDI API + mapping panel
+
+- [ ] (EYES) Plug in a real MIDI controller: confirm it shows up in the MIDI panel
+      status line by name, notes play the synth, and Learn + moving a real knob/
+      fader binds a CC end-to-end (not just the simulated-input path already
+      verified headlessly — see STATUS_LOG.md 2026-07-06 entry).
+- [ ] (EYES) With no MIDI device connected/plugged in, confirm no console errors
+      and no broken UI state anywhere else in the app (automated check already
+      passed; wants a human look at a real browser tab).
+- [ ] (EARS) Confirm mapped-knob movement from a real controller doesn't introduce
+      zipper noise/clicks at typical CC message rates — the knob's own `.set()`
+      path is a plain state write (no ramping), same as mouse-drag input, but a
+      real controller can send CC updates much faster than a mouse drag.
+
 ## Phase 1 Build Pass — Item 1: WebGL meter rendering
 
 - [ ] (EYES) Confirm in a real browser with real audio: silence shows flat/zero
