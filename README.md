@@ -1,82 +1,78 @@
 # wubflipz
 
-A standalone dubstep **wobble-bass synth** — plain HTML/CSS/JS + Web Audio + Canvas.
-No build step, no `node_modules`, no framework. Sibling to `wublabz` (this is a
-separate directory and does **not** live inside that repo).
+A standalone dubstep **wobble-bass synth and browser sample workstation** built with plain HTML/CSS/JavaScript, Web Audio and Canvas. It has no production build step, framework, hosted backend, or required account.
 
 ## Run
 
-It's a static site. Open `index.html` directly, or serve it (recommended, so
-`localStorage` presets and file upload behave normally):
+Serve the repository as a static site so browser storage, workers, and file workflows run in a normal HTTP origin:
 
 ```bash
-cd ~/wubflipz
-python3 -m http.server 4173   # any port in the 4000s (avoids wublabz's 3000/3001/3002)
-# then open http://localhost:4173
+python3 -m http.server 4173
 ```
 
-Audio starts on your first interaction (browser autoplay policy). Click **Power**
-or press any note.
+Then open `http://127.0.0.1:4173/`. Audio starts after the first user interaction because of browser autoplay policy.
 
 ## Play
 
-- **Computer keyboard:** `A W S E D F T G Y H U J K …` (bottom row white, upper row
-  black), `Z` / `X` shift octave. Fully polyphonic.
+- **Computer keyboard:** `A W S E D F T G Y H U J K …`; `Z` / `X` shift octave.
 - **Mouse / touch:** click keys or drag across them.
-- **Knobs:** drag up/down (hold **Shift** = fine), scroll wheel, double-click to
-  reset, or focus + arrow keys.
+- **Knobs:** drag vertically, hold **Shift** for fine adjustment, use the wheel, double-click to reset, or use keyboard arrows while focused.
+- **Web MIDI:** supported browsers can connect external MIDI controllers and map CC messages through MIDI Learn.
 
-## Modules
+## Synth modules
 
 | Module | What it does |
 |---|---|
-| **Oscillators** | Two osc A+B, waveform each, Detune, equal-power Mix, ±3 Octave |
-| **Sub Bass** | Always-on pure sine, own octave; **bypasses the wobble filter** so it stays steady |
-| **Filter** | 24 dB low-pass, Cutoff + Resonance; target of the wobble/growl LFOs |
-| **Wobble** | Tempo-synced LFO → cutoff. BPM, half-time, musical divisions (1/1–1/16 + dotted/triplet), Depth, LFO wave |
-| **Growl** | Faster LFO layered on top: one Amount knob modulates cutoff + resonance + slight pitch drift; independent Rate |
-| **Envelope** | ADSR amplitude with live shape graph |
-| **Drive / Out** | tanh saturation (Drive), Master, limiter, oscilloscope, readouts |
-| **Presets** | Save/Load JSON via `localStorage`, Download / Upload `.json` |
+| **Oscillators** | Two oscillators, waveform selection, detune, equal-power mix, ±3 octave range |
+| **Sub Bass** | Dedicated sine sub path that bypasses the wobble filter |
+| **Filter** | 24 dB low-pass cutoff/resonance stage |
+| **Wobble** | Tempo-synced LFO into filter cutoff with musical divisions, depth and waveform selection |
+| **Growl** | Faster modulation layer affecting cutoff, resonance and slight pitch drift |
+| **Envelope** | ADSR amplitude shaping with live graph |
+| **Drive / Out** | Saturation, master level, limiter, scope and real signal metering |
+| **Presets** | Save/load browser presets plus JSON download/upload |
 
-## Audio tools (Stages 2–5)
+## Sample workstation
 
-Below the synth: a small sample workstation, all client-side, no build step.
+The lower workflow extends the synth into a client-side sample environment:
 
-- **Sample** — drag-drop / browse to load audio; off-main-thread decode; peak waveform;
-  transport (play/pause/stop), click-to-seek, drag-to-select loop region, zoom. Runs on
-  its own AudioContext, separate from the synth.
-- **Analyze** — detect tempo (spectral-flux onsets → autocorrelation) and key (chroma +
-  Krumhansl-Schmuckler). Detected BPM fills the Wobble field; both are **editable
-  estimates**. Toggle a beat **Grid** and **Snap** (loop/seek snap to beats).
-- **Quick Split** — approximate, DSP-only (not ML) stem separation: HPSS (harmonic /
-  percussive via median-filtered spectrogram) and Mid/Side (rough vocal remove / isolate).
-- **Lanes** — one lane per track (original + splits) with waveform, volume, pan, mute,
-  solo; all lanes share one sample-accurate playhead/transport.
+- **Sample** — local audio import, decode, waveform, transport, seek, loop selection and zoom.
+- **Analyze** — editable BPM/key estimates, beat grid and snap assistance.
+- **Quick Split** — DSP-only HPSS harmonic/percussive and Mid/Side separation. HPSS processing runs in a Web Worker and uses transferable buffers where supported.
+- **Lanes** — synchronized tracks with waveform, volume, pan, mute and solo.
+- **Projects / restore points** — IndexedDB-backed project state and capped independent snapshots.
+- **MIDI** — note input and MIDI Learn mappings routed through the same control paths as the on-screen interface.
 
-See `STATUS_LOG.md` for build detail and `AUDIT_QUEUE.md` for what still needs a human
-by-ear / by-eye pass (audio quality is never self-certified here).
+Audio quality is deliberately not self-certified. `STATUS_LOG.md` contains the implementation/validation ledger and `AUDIT_QUEUE.md` tracks remaining human by-ear/by-eye checks.
 
 ## Architecture
 
-```
-per voice:  oscA \                                    sub bypasses the wobble filter
-            oscB  > mix -> VCA(ADSR) -> [ modFilter ] ----\
+```text
+per voice:  oscA \
+            oscB  > mix -> VCA(ADSR) -> modFilter ---------\
             subOsc -> subVCA(ADSR) -> subBus --------------> preBus -> shaper -> master -> limiter -> scope -> out
 
-wobbleLFO -> depth ----------------> modFilter.detune   (tempo-synced cents)
+wobbleLFO -> depth ----------------> modFilter.detune
 growlLFO  -> amount -> cutoff -----> modFilter.detune
                     -> reso -------> modFilter.Q
-                    -> pitch ------> (per voice) osc detune
+                    -> pitch ------> per-voice oscillator detune
 ```
 
-- `engine.js` — Web Audio graph, voice lifecycle, modulation, live params.
-- `presets.js` — state capture/restore, localStorage + file I/O.
-- `ui.js` — knobs, selectors, keyboard, canvases, preset wiring.
+Core implementation lives under `js/`. Voices are capped at 16 with oldest-voice stealing and released nodes are disconnected. Heavy HPSS work runs off the main thread when Worker support is available.
 
-Voices are capped (16) with oldest-voice stealing, and every node is explicitly
-disconnected on envelope release to avoid long-session graph leaks.
+## Release validation
 
-## Status
+GitHub CI performs JavaScript syntax validation, a static release preflight, and an HTTP entrypoint smoke test. The GitHub Pages workflow repeats syntax/preflight validation before publishing the static site.
 
-Stage 1 built; **awaiting by-ear validation** before Stage 2. See `STATUS_LOG.md`.
+The release preflight rejects missing core files, missing viewport metadata, unexpectedly missing application modules, and root-absolute URLs that would break project-subpath hosting.
+
+## Current release boundary
+
+The code-side browser MVP is implemented through the synth, sample/analyze/split/lanes workflow, project storage, worker processing, metering and MIDI support. Promotion to a fully accepted audio release still requires human checks that automation cannot honestly replace:
+
+- by-ear synth, split and lane audio-quality review;
+- real hardware MIDI-controller verification;
+- by-eye browser/layout review on representative desktop/mobile browsers;
+- confirmation that the deployed Pages build behaves the same as the tested static build.
+
+These are acceptance gates, not missing Stage 2–5 implementation work.
